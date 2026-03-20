@@ -59,7 +59,7 @@ export default function LiveSharing({ userLocation, routeContext }) {
   const socketRef = useRef(null)
 
   useEffect(() => {
-    socketRef.current = io('http://localhost:5001', { transports: ['websocket', 'polling'] })
+    socketRef.current = io(import.meta.env.VITE_API_URL || 'http://localhost:5001', { transports: ['websocket', 'polling'] })
 
     socketRef.current.on('userLocation', (data) => {
       setSharedUsers(prev => ({ ...prev, [data.id]: data }))
