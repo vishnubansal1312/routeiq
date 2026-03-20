@@ -9,18 +9,27 @@ const ML_URL      = process.env.ML_API_URL || "http://localhost:8000";
 router.get("/autocomplete", async (req, res) => {
   try {
     const { query } = req.query;
-    if (!query) return res.json({ results: [] });
-    const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=7&countrySet=IN&language=en-GB&typeahead=true`;
+    if (!query || query.length < 2) return res.json({ results: [] });
+
+    console.log("Autocomplete query:", query);
+
+    const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?key=${TOMTOM_KEY}&limit=7&countrySet=IN&language=en-GB&typeahead=true&idxSet=POI,PAD,Str,Xstr,Geo,Addr`;
+
     const response = await axios.get(url);
-    const results = response.data.results.map((r) => ({
-      label: r.address.freeformAddress || r.poi?.name,
-      lat:   r.position.lat,
-      lon:   r.position.lon,
-      city:  r.address.municipality,
-    }));
+    console.log("TomTom results:", response.data.summary?.totalResults);
+
+    const results = response.data.results
+      .filter(r => r.address)
+      .map((r) => ({
+        label: r.address.freeformAddress || r.poi?.name || r.address.municipality,
+        lat:   r.position.lat,
+        lon:   r.position.lon,
+        city:  r.address.municipality || '',
+      }));
+
     res.json({ results });
   } catch (err) {
-    console.error("Autocomplete error:", err.message);
+    console.error("Autocomplete error:", err.response?.data || err.message);
     res.json({ results: [] });
   }
 });
