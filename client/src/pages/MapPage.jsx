@@ -84,8 +84,18 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
     setLoading(true)
     timerRef.current = setTimeout(async () => {
       try {
-        const res   = await api.get(`/api/autocomplete?query=${encodeURIComponent(val)}`)
-        const items = res.data.results || []
+        const TOMTOM_KEY = 'Ou0ReLCCsOXanPHmbSsBVYlq01MQN2wY'
+const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(val)}.json?key=${TOMTOM_KEY}&limit=7&countrySet=IN&language=en-GB&typeahead=true`
+const response = await fetch(url)
+const data = await response.json()
+const items = (data.results || [])
+  .filter(r => r.address && r.position)
+  .map(r => ({
+    label: r.address.freeformAddress || r.poi?.name || r.address.municipality || val,
+    lat:   r.position.lat,
+    lon:   r.position.lon,
+    city:  r.address.municipality || '',
+  }))
         setResults(items); setShowDrop(items.length > 0)
       } catch { setResults([]) }
       setLoading(false)
