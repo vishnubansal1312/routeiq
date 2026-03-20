@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Syne', ui-sans-serif, system-ui;
+  background-color: #020617;
+  color: #f1f5f9;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1e293b; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+
+@layer components {
+  .card {
+    @apply bg-dark-800 border border-dark-700 rounded-2xl p-5 shadow-xl;
+  }
+  .input-field {
+    @apply w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-3 text-slate-100
+           placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50
+           focus:border-primary-500 transition-all duration-200;
+  }
+  .btn-primary {
+    @apply bg-primary-500 hover:bg-primary-600 text-white font-semibold px-6 py-3
+           rounded-xl transition-all duration-200 shadow-lg hover:-translate-y-0.5 disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply bg-dark-700 hover:bg-dark-600 text-slate-300 font-medium px-5 py-2.5
+           rounded-xl transition-all duration-200 border border-dark-600;
+  }
+}
+
+.leaflet-container { background: #020617 !important; }
+.leaflet-popup-content-wrapper {
+  background: #1e293b;
+  color: #f1f5f9;
+  border: 1px solid #334155;
+  border-radius: 12px;
+}
+.leaflet-popup-tip { background: #1e293b; }
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  z-index: 9999;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  margin-top: 4px;
+  overflow: hidden;
+}
+.autocomplete-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #0f172a;
+  font-size: 14px;
+  transition: background 0.15s;
+}
+.autocomplete-item:last-child { border-bottom: none; }
+.autocomplete-item:hover { background: #334155; }

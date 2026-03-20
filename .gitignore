@@ -1,0 +1,31 @@
+# Node modules
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment files
+.env
+client/.env
+server/.env
+
+# Build output
+client/dist/
+client/build/
+
+# Python venv — DO NOT upload this
+ml/venv/
+ml/__pycache__/
+ml/*.pyc
+ml/congestion_model.joblib
+ml/pyvenv.cfg
+ml/Include/
+ml/Lib/
+ml/Scripts/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
