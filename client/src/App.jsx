@@ -1,14 +1,15 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import Navbar    from './components/Navbar'
-import Login     from './pages/Login'
-import Signup    from './pages/Signup'
-import MapPage   from './pages/MapPage'
-import Dashboard from './pages/Dashboard'
-import History   from './pages/History'
-import Fleet     from './pages/Fleet'
-import Pricing   from './pages/Pricing'
-import Landing   from './pages/Landing'
+import Navbar       from './components/Navbar'
+import Login        from './pages/Login'
+import Signup       from './pages/Signup'
+import MapPage      from './pages/MapPage'
+import Dashboard    from './pages/Dashboard'
+import History      from './pages/History'
+import Fleet        from './pages/Fleet'
+import Pricing      from './pages/Pricing'
+import Landing      from './pages/Landing'
+import AuthCallback from './pages/AuthCallback'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -43,23 +44,17 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Landing page — no navbar, no auth required */}
-          <Route path="/"       element={<Landing />} />
-          <Route path="/home"   element={<Landing />} />
-
-          {/* Auth pages */}
-          <Route path="/login"  element={<PublicRoute><Login /></PublicRoute>} />
-          <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
-
-          {/* App pages — require login */}
-          <Route path="/map"       element={<PrivateRoute><Layout><MapPage /></Layout></PrivateRoute>} />
-          <Route path="/dashboard" element={<PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>} />
-          <Route path="/history"   element={<PrivateRoute><Layout><History /></Layout></PrivateRoute>} />
-          <Route path="/fleet"     element={<PrivateRoute><Layout><Fleet /></Layout></PrivateRoute>} />
-          <Route path="/pricing"   element={<PrivateRoute><Layout><Pricing /></Layout></PrivateRoute>} />
-
-          {/* Catch all */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/"              element={<Landing />} />
+          <Route path="/home"          element={<Landing />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/login"         element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/signup"        element={<PublicRoute><Signup /></PublicRoute>} />
+          <Route path="/map"           element={<PrivateRoute><Layout><MapPage /></Layout></PrivateRoute>} />
+          <Route path="/dashboard"     element={<PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>} />
+          <Route path="/history"       element={<PrivateRoute><Layout><History /></Layout></PrivateRoute>} />
+          <Route path="/fleet"         element={<PrivateRoute><Layout><Fleet /></Layout></PrivateRoute>} />
+          <Route path="/pricing"       element={<PrivateRoute><Layout><Pricing /></Layout></PrivateRoute>} />
+          <Route path="*"              element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
