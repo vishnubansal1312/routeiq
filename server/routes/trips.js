@@ -1,57 +1,58 @@
 const express = require("express");
 const router  = express.Router();
+const auth    = require("../middleware/auth");
 const Trip    = require("../models/Trip");
-const protect = require("../middleware/auth");
 
-router.post("/", protect, async (req, res) => {
+// Get all trips for logged in user
+router.get("/", auth, async (req, res) => {
   try {
-    const trip = await new Trip({ userId: req.user._id, ...req.body }).save();
-    res.status(201).json(trip);
+    const trips = await Trip.find({ user: req.userId })
+      .sort({ createdAt: -1 })
+      .limit(100);
+    res.json({ trips });
   } catch (err) {
-    res.status(500).json({ message: "Error saving trip" });
+    console.error("Get trips error:", err.message);
+    res.status(500).json({ error: "Failed to get trips" });
   }
 });
 
-router.get("/", protect, async (req, res) => {
+// Save a trip
+router.post("/", auth, async (req, res) => {
   try {
-    const trips = await Trip.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(20);
-    res.json(trips);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching trips" });
-  }
-});
+    const {
+      origin, destination, routeType, distance, duration,
+      congestionScore, congestionLevel, weather, tollCost, fuelCost,
+    } = req.body;
 
-router.delete("/:id", protect, async (req, res) => {
-  try {
-    const trip = await Trip.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
-    if (!trip) return res.status(404).json({ message: "Trip not found" });
-    res.json({ message: "Trip deleted" });
-  } catch (err) {
-    res.status(500).json({ message: "Error deleting trip" });
-  }
-});
-
-router.get("/stats", protect, async (req, res) => {
-  try {
-    const trips = await Trip.find({ userId: req.user._id });
-    const totalTrips    = trips.length;
-    const totalDistance = trips.reduce((s, t) => s + (t.distance || 0), 0).toFixed(1);
-    const avgCongestion = totalTrips
-      ? (trips.reduce((s, t) => s + (t.congestionScore || 0), 0) / totalTrips).toFixed(1)
-      : 0;
-    const totalFuelCost = trips.reduce((s, t) => s + (t.fuelCost || 0), 0).toFixed(0);
-    const hourlyData = Array.from({ length: 24 }, (_, hour) => {
-      const ht = trips.filter(t => new Date(t.createdAt).getHours() === hour);
-      return {
-        hour: `${hour}:00`,
-        congestion: ht.length
-          ? (ht.reduce((s, t) => s + (t.congestionScore || 0), 0) / ht.length).toFixed(1)
-          : (Math.random() * 4 + 1).toFixed(1),
-      };
+    const trip = new Trip({
+      user:           req.userId,
+      origin,
+      destination,
+      routeType:      routeType || "fastest",
+      distance:       parseFloat(distance) || 0,
+      duration:       parseFloat(duration) || 0,
+      congestionScore: parseFloat(congestionScore) || 5,
+      congestionLevel: congestionLevel || "Moderate",
+      weather:        weather || {},
+      tollCost:       parseFloat(tollCost) || 0,
+      fuelCost:       parseFloat(fuelCost) || 0,
     });
-    res.json({ totalTrips, totalDistance, avgCongestion, totalFuelCost, hourlyData });
+
+    await trip.save();
+    res.status(201).json({ trip });
   } catch (err) {
-    res.status(500).json({ message: "Error fetching stats" });
+    console.error("Save trip error:", err.message);
+    res.status(500).json({ error: "Failed to save trip" });
+  }
+});
+
+// Delete a trip
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    await Trip.findOneAndDelete({ _id: req.params.id, user: req.userId });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete trip" });
   }
 });
 
