@@ -14,10 +14,11 @@ import AuthCallback from './pages/AuthCallback'
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
   if (loading) return (
-    <div className="min-h-screen bg-dark-900 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-10 h-10 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-slate-400 text-sm">Loading RouteIQ...</p>
+    <div style={{ minHeight:'100vh', background:'#f9fafb', display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ textAlign:'center' }}>
+        <div style={{ width:40, height:40, border:'3px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px' }} />
+        <p style={{ color:'#6b7280', fontSize:14, fontFamily:'sans-serif' }}>Loading RouteIQ...</p>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
     </div>
   )
@@ -32,9 +33,9 @@ function PublicRoute({ children }) {
 
 function Layout({ children }) {
   return (
-    <div className="min-h-screen bg-dark-900 flex flex-col">
+    <div style={{ minHeight:'100vh', background:'#f9fafb', display:'flex', flexDirection:'column' }}>
       <Navbar />
-      <main className="flex-1">{children}</main>
+      <main style={{ flex:1 }}>{children}</main>
     </div>
   )
 }
