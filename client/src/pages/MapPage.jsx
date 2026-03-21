@@ -24,26 +24,27 @@ L.Icon.Default.mergeOptions({
 const greenIcon = new L.Icon({
   iconUrl:   'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25,41], iconAnchor: [12,41], popupAnchor: [1,-34],
+  iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34],
 })
 const redIcon = new L.Icon({
   iconUrl:   'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25,41], iconAnchor: [12,41], popupAnchor: [1,-34],
+  iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34],
 })
 const liveIcon = new L.DivIcon({
   className: '',
-  html: `<div style="width:18px;height:18px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,0.3);animation:pulse-gps 1.5s infinite"></div>
-  <style>@keyframes pulse-gps{0%{box-shadow:0 0 0 0 rgba(59,130,246,0.4)}100%{box-shadow:0 0 0 12px rgba(59,130,246,0)}}</style>`,
-  iconSize: [18,18], iconAnchor: [9,9],
+  html: `<div style="width:16px;height:16px;background:#6d28d9;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(109,40,217,0.25);animation:pulse-gps 1.5s infinite"></div>
+  <style>@keyframes pulse-gps{0%{box-shadow:0 0 0 0 rgba(109,40,217,0.4)}100%{box-shadow:0 0 0 12px rgba(109,40,217,0)}}</style>`,
+  iconSize:[16,16], iconAnchor:[8,8],
 })
 
-const ROUTE_COLORS = { fastest: '#0ea5e9', shortest: '#a855f7', eco: '#22c55e' }
-const congestionColor = {
-  Low:      'text-green-400  bg-green-400/10  border-green-400/30',
-  Moderate: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
-  High:     'text-orange-400 bg-orange-400/10 border-orange-400/30',
-  Severe:   'text-red-400    bg-red-400/10    border-red-400/30',
+const ROUTE_COLORS = { fastest:'#6d28d9', shortest:'#0ea5e9', eco:'#22c55e' }
+
+const CONGESTION_STYLES = {
+  Low:      { bg:'#f0fdf4', text:'#15803d', border:'#bbf7d0' },
+  Moderate: { bg:'#fefce8', text:'#a16207', border:'#fef08a' },
+  High:     { bg:'#fff7ed', text:'#c2410c', border:'#fed7aa' },
+  Severe:   { bg:'#fef2f2', text:'#b91c1c', border:'#fecaca' },
 }
 
 function FlyToRoutes({ allRoutes }) {
@@ -51,7 +52,7 @@ function FlyToRoutes({ allRoutes }) {
   useEffect(() => {
     if (!allRoutes?.length) return
     const pts = allRoutes.flatMap(r => r.points)
-    if (pts.length > 0) map.fitBounds(L.latLngBounds(pts), { padding: [50,50] })
+    if (pts.length > 0) map.fitBounds(L.latLngBounds(pts), { padding:[50,50] })
   }, [allRoutes])
   return null
 }
@@ -60,7 +61,7 @@ function FollowUser({ position, follow }) {
   const map = useMap()
   useEffect(() => {
     if (position && follow)
-      map.setView([position.lat, position.lon], Math.max(map.getZoom(), 15), { animate: true })
+      map.setView([position.lat, position.lon], Math.max(map.getZoom(), 15), { animate:true })
   }, [position, follow])
   return null
 }
@@ -73,9 +74,7 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
   const wrapRef  = useRef(null)
 
   useEffect(() => {
-    const fn = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowDrop(false)
-    }
+    const fn = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowDrop(false) }
     document.addEventListener('mousedown', fn)
     return () => document.removeEventListener('mousedown', fn)
   }, [])
@@ -89,8 +88,8 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
     timerRef.current = setTimeout(async () => {
       try {
         const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(val)}.json?key=${TOMTOM_KEY}&limit=7&countrySet=IN&language=en-GB&typeahead=true`
-        const response = await fetch(url)
-        const data = await response.json()
+        const res  = await fetch(url)
+        const data = await res.json()
         const items = (data.results || [])
           .filter(r => r.address && r.position)
           .map(r => ({
@@ -99,44 +98,43 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
             lon:   r.position.lon,
             city:  r.address.municipality || r.address.countrySubdivision || '',
           }))
-        setResults(items)
-        setShowDrop(items.length > 0)
-      } catch (err) {
-        console.error('Autocomplete error:', err)
-        setResults([])
-      }
+        setResults(items); setShowDrop(items.length > 0)
+      } catch { setResults([]) }
       setLoading(false)
     }, 350)
   }
 
   const handleSelect = (item) => {
-    onChange(item.label)
-    onSelect(item)
-    setShowDrop(false)
-    setResults([])
+    onChange(item.label); onSelect(item); setShowDrop(false); setResults([])
   }
 
   return (
-    <div ref={wrapRef} style={{ position: 'relative' }}>
-      {label && <label className="text-xs text-slate-500 mb-1 block">{label}</label>}
-      <div className="relative">
+    <div ref={wrapRef} style={{ position:'relative' }}>
+      {label && <label style={{ display:'block', fontSize:12, fontWeight:500, color:'#6b7280', marginBottom:5 }}>{label}</label>}
+      <div style={{ position:'relative' }}>
         <input
-          type="text" value={value} onChange={handleInput}
-          placeholder={placeholder}
-          className="input-field pr-10 text-sm" autoComplete="off"
+          type="text" value={value} onChange={handleInput} placeholder={placeholder}
+          autoComplete="off"
+          style={{ width:'100%', padding:'10px 36px 10px 12px', border:'1.5px solid #e5e7eb', borderRadius:10, fontSize:14, fontFamily:'inherit', outline:'none', color:'#111', background:'#fff', boxSizing:'border-box', transition:'border-color 0.2s' }}
+          onFocus={e  => e.target.style.borderColor='#6d28d9'}
+          onBlur={e   => e.target.style.borderColor='#e5e7eb'}
         />
         {loading && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-dark-600 border-t-primary-500 rounded-full animate-spin" />
+          <div style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)' }}>
+            <div style={{ width:14, height:14, border:'2px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
           </div>
         )}
       </div>
       {showDrop && results.length > 0 && (
-        <div className="autocomplete-dropdown">
-          {results.map((r, i) => (
-            <div key={i} className="autocomplete-item" onMouseDown={() => handleSelect(r)}>
-              <div className="text-slate-200 text-sm">{r.label}</div>
-              {r.city && <div className="text-slate-500 text-xs mt-0.5">{r.city}</div>}
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:9999, overflow:'hidden' }}>
+          {results.map((r,i) => (
+            <div key={i} onMouseDown={() => handleSelect(r)}
+              style={{ padding:'10px 12px', cursor:'pointer', borderBottom: i<results.length-1?'1px solid #f9fafb':'none', transition:'background 0.1s' }}
+              onMouseOver={e => e.currentTarget.style.background='#faf5ff'}
+              onMouseOut={e  => e.currentTarget.style.background='#fff'}
+            >
+              <div style={{ fontSize:13, color:'#111', fontWeight:500 }}>{r.label}</div>
+              {r.city && <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>{r.city}</div>}
             </div>
           ))}
         </div>
@@ -147,66 +145,51 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
 
 export default function MapPage() {
   const [origin, setOrigin]               = useState({ label:'', lat:null, lon:null })
-  const [dest, setDest]                   = useState({ label:'', lat:null, lon:null })
+  const [dest,   setDest]                 = useState({ label:'', lat:null, lon:null })
   const [activeRoute, setActiveRoute]     = useState('fastest')
-  const [allRoutes, setAllRoutes]         = useState([])
-  const [weather, setWeather]             = useState(null)
-  const [congestion, setCongestion]       = useState(null)
-  const [loading, setLoading]             = useState(false)
-  const [error, setError]                 = useState('')
-  const [tripSaved, setTripSaved]         = useState(false)
+  const [allRoutes,   setAllRoutes]       = useState([])
+  const [weather,     setWeather]         = useState(null)
+  const [congestion,  setCongestion]      = useState(null)
+  const [loading,     setLoading]         = useState(false)
+  const [error,       setError]           = useState('')
+  const [tripSaved,   setTripSaved]       = useState(false)
   const [compareMode, setCompareMode]     = useState(true)
   const [showIncidents, setShowIncidents] = useState(false)
   const [incidentCount, setIncidentCount] = useState(0)
-  const [showHotspots, setShowHotspots]   = useState(false)
-  const [hotspotCount, setHotspotCount]   = useState(0)
-  const [routePlaces, setRoutePlaces]     = useState([])
-  const [sharedUsers, setSharedUsers]     = useState({})
-  const [userLocation, setUserLocation]   = useState(null)
-  const [tracking, setTracking]           = useState(false)
-  const [followUser, setFollowUser]       = useState(false)
+  const [showHotspots,  setShowHotspots]  = useState(false)
+  const [hotspotCount,  setHotspotCount]  = useState(0)
+  const [routePlaces,   setRoutePlaces]   = useState([])
+  const [sharedUsers,   setSharedUsers]   = useState({})
+  const [userLocation,  setUserLocation]  = useState(null)
+  const [tracking,      setTracking]      = useState(false)
+  const [followUser,    setFollowUser]    = useState(false)
   const [locationError, setLocationError] = useState('')
-  const [sidebarOpen, setSidebarOpen]     = useState(false)
-  const [locating, setLocating]           = useState(false)
+  const [sidebarOpen,   setSidebarOpen]   = useState(false)
+  const [locating,      setLocating]      = useState(false)
   const watchIdRef = useRef(null)
 
   const activeRouteData = allRoutes.find(r => r.key === activeRoute) || null
 
-  // ── Use current location for origin ──
   const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setError('GPS not supported on this device')
-      return
-    }
+    if (!navigator.geolocation) { setError('GPS not supported'); return }
     setLocating(true)
-    setOrigin(o => ({ ...o, label: 'Getting your location...' }))
-
+    setOrigin(o => ({ ...o, label:'Getting your location...' }))
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude: lat, longitude: lon } = pos.coords
+        const { latitude:lat, longitude:lon } = pos.coords
         try {
-          const url = `https://api.tomtom.com/search/2/reverseGeocode/${lat},${lon}.json?key=${TOMTOM_KEY}&language=en-GB`
-          const res  = await fetch(url)
+          const res  = await fetch(`https://api.tomtom.com/search/2/reverseGeocode/${lat},${lon}.json?key=${TOMTOM_KEY}&language=en-GB`)
           const data = await res.json()
           const addr = data.addresses?.[0]?.address
-          const label = addr?.freeformAddress
-            || addr?.municipality
-            || `${lat.toFixed(4)}, ${lon.toFixed(4)}`
+          const label = addr?.freeformAddress || addr?.municipality || `${lat.toFixed(4)}, ${lon.toFixed(4)}`
           setOrigin({ label, lat, lon })
         } catch {
-          setOrigin({
-            label: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
-            lat, lon,
-          })
+          setOrigin({ label:`${lat.toFixed(4)}, ${lon.toFixed(4)}`, lat, lon })
         }
         setLocating(false)
       },
-      () => {
-        setOrigin({ label: '', lat: null, lon: null })
-        setError('Location access denied. Please allow GPS.')
-        setLocating(false)
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
+      () => { setOrigin({ label:'', lat:null, lon:null }); setError('Location access denied'); setLocating(false) },
+      { enableHighAccuracy:true, timeout:10000 }
     )
   }
 
@@ -215,9 +198,9 @@ export default function MapPage() {
     if (!navigator.geolocation) { setLocationError('GPS not supported'); return }
     setTracking(true); setFollowUser(true)
     watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      () => { setLocationError('Location denied — please allow GPS'); setTracking(false) },
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+      (pos) => setUserLocation({ lat:pos.coords.latitude, lon:pos.coords.longitude }),
+      () => { setLocationError('Location denied'); setTracking(false) },
+      { enableHighAccuracy:true, maximumAge:3000, timeout:10000 }
     )
   }
 
@@ -226,187 +209,141 @@ export default function MapPage() {
     setTracking(false); setFollowUser(false); setUserLocation(null)
   }
 
-  useEffect(() => () => {
-    if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current)
-  }, [])
+  useEffect(() => () => { if (watchIdRef.current) navigator.geolocation.clearWatch(watchIdRef.current) }, [])
 
   const handleGetRoute = async () => {
-    if (!origin.lat || !dest.lat) {
-      setError('Please select both origin and destination from the dropdown')
-      return
-    }
-    setLoading(true); setError('')
-    setAllRoutes([]); setWeather(null); setCongestion(null); setTripSaved(false)
-
+    if (!origin.lat || !dest.lat) { setError('Please select both origin and destination from the dropdown'); return }
+    setLoading(true); setError(''); setAllRoutes([]); setWeather(null); setCongestion(null); setTripSaved(false)
     try {
       const [routesRes, weatherRes] = await Promise.all([
-        api.get('/api/routes/all', {
-          params: {
-            originLat: origin.lat, originLon: origin.lon,
-            destLat: dest.lat, destLon: dest.lon,
-          }
-        }),
-        api.get('/api/weather', { params: { lat: dest.lat, lon: dest.lon } })
+        api.get('/api/routes/all', { params:{ originLat:origin.lat, originLon:origin.lon, destLat:dest.lat, destLon:dest.lon } }),
+        api.get('/api/weather', { params:{ lat:dest.lat, lon:dest.lon } })
       ])
-
       setAllRoutes(routesRes.data.routes)
       setWeather(weatherRes.data)
-
-      const fastest = routesRes.data.routes.find(r => r.key === 'fastest') || routesRes.data.routes[0]
+      const fastest = routesRes.data.routes.find(r => r.key==='fastest') || routesRes.data.routes[0]
       const now = new Date()
       const predRes = await api.post('/api/predict', {
-        hour: now.getHours(), dayOfWeek: now.getDay(), month: now.getMonth() + 1,
-        weatherCode: 800, temp: weatherRes.data.temp || 30,
-        humidity: weatherRes.data.humidity || 60, windSpeed: weatherRes.data.windSpeed || 5,
-        visibility: 10, distance: parseFloat(fastest.distance),
-        originLat: origin.lat, originLon: origin.lon,
-        destLat: dest.lat, destLon: dest.lon,
+        hour:now.getHours(), dayOfWeek:now.getDay(), month:now.getMonth()+1,
+        weatherCode:800, temp:weatherRes.data.temp||30, humidity:weatherRes.data.humidity||60,
+        windSpeed:weatherRes.data.windSpeed||5, visibility:10, distance:parseFloat(fastest.distance),
+        originLat:origin.lat, originLon:origin.lon, destLat:dest.lat, destLon:dest.lon,
       })
       setCongestion(predRes.data)
-
       await api.post('/api/trips', {
-        origin:      { label: origin.label, lat: origin.lat, lon: origin.lon },
-        destination: { label: dest.label,   lat: dest.lat,   lon: dest.lon   },
-        routeType: activeRoute,
-        distance: parseFloat(fastest.distance),
-        duration: fastest.duration,
-        congestionScore: predRes.data.score,
-        congestionLevel: predRes.data.level,
-        weather: {
-          temp: weatherRes.data.temp,
-          condition: weatherRes.data.condition,
-          icon: weatherRes.data.icon,
-        },
-        tollCost: fastest.tollCost,
-        fuelCost: fastest.fuelCost,
+        origin:{ label:origin.label, lat:origin.lat, lon:origin.lon },
+        destination:{ label:dest.label, lat:dest.lat, lon:dest.lon },
+        routeType:activeRoute, distance:parseFloat(fastest.distance), duration:fastest.duration,
+        congestionScore:predRes.data.score, congestionLevel:predRes.data.level,
+        weather:{ temp:weatherRes.data.temp, condition:weatherRes.data.condition, icon:weatherRes.data.icon },
+        tollCost:fastest.tollCost, fuelCost:fastest.fuelCost,
       })
       setTripSaved(true)
       setSidebarOpen(false)
-
-    } catch (err) {
+    } catch(err) {
       setError(err.response?.data?.error || 'Failed to get routes. Try again.')
-      console.error(err)
     }
     setLoading(false)
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 56px)', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ display:'flex', height:'calc(100vh - 56px)', position:'relative', overflow:'hidden', fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      <style>{`
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        .sidebar-section { border-bottom: 1px solid #f5f5f5; padding: 16px; }
+        .layer-btn { width:100%; padding:9px 12px; border-radius:9px; border:1px solid #e5e7eb; background:#fff; font-size:12px; font-weight:500; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:8px; transition:all 0.15s; color:#374151; }
+        .layer-btn:hover { border-color:#6d28d9; color:#6d28d9; background:#faf5ff; }
+        .layer-btn.active { background:#f5f3ff; border-color:#6d28d9; color:#6d28d9; }
+      `}</style>
 
-      {/* ── MOBILE TOGGLE ── */}
+      {/* ── Mobile toggle ── */}
       <button
         onClick={() => setSidebarOpen(s => !s)}
-        style={{
-          position: 'absolute', top: 12, left: 12, zIndex: 10000,
-          background: '#0f172a', border: '1px solid #334155',
-          borderRadius: 12, padding: '8px 14px', color: 'white',
-          fontSize: 14, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 6,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
-        }}
-        className="md:hidden"
+        style={{ position:'absolute', top:12, left:12, zIndex:10000, background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'8px 14px', color:'#374151', fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', gap:6, boxShadow:'0 2px 12px rgba(0,0,0,0.1)', fontFamily:'inherit', fontWeight:500 }}
+        className="mobile-btn"
       >
-        <span style={{ fontSize: 16 }}>{sidebarOpen ? '✕' : '☰'}</span>
-        <span style={{ fontSize: 11, color: '#94a3b8' }}>
-          {sidebarOpen ? 'Close' : 'Search Route'}
-        </span>
+        <span style={{ fontSize:15 }}>{sidebarOpen ? '✕' : '☰'}</span>
+        <span style={{ fontSize:11, color:'#6b7280' }}>{sidebarOpen ? 'Close' : 'Search'}</span>
       </button>
 
-      {/* ── MOBILE OVERLAY ── */}
+      {/* ── Mobile overlay ── */}
       {sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9998 }}
-          className="md:hidden"
-        />
+        <div onClick={() => setSidebarOpen(false)}
+          style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.4)', zIndex:9998 }}
+          className="mobile-only" />
       )}
 
-      {/* ══════════ SIDEBAR ══════════ */}
-      <div
-        style={{
-          position: 'absolute', left: 0, top: 0, height: '100%', width: 320,
-          zIndex: 9999,
-          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition: 'transform 0.3s ease',
-          display: 'flex', flexDirection: 'column', overflowY: 'auto',
-          background: '#0f172a', borderRight: '1px solid #1e293b',
-        }}
-        className="md:relative md:translate-x-0"
+      {/* ══════ SIDEBAR ══════ */}
+      <div style={{
+        position:'absolute', left:0, top:0, height:'100%', width:300, zIndex:9999,
+        transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition:'transform 0.3s ease',
+        background:'#fff', borderRight:'1px solid #f0f0f0',
+        display:'flex', flexDirection:'column', overflowY:'auto',
+        boxShadow:'4px 0 24px rgba(0,0,0,0.06)',
+      }}
+        className="md-sidebar"
       >
-        <div className="p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
-              Plan Your Route
-            </h2>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className="md:hidden text-slate-500 hover:text-white text-lg"
-            >✕</button>
-          </div>
+        {/* Header */}
+        <div style={{ padding:'14px 16px', borderBottom:'1px solid #f5f5f5', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'#374151', textTransform:'uppercase', letterSpacing:'0.05em' }}>Plan Route</span>
+          <button onClick={() => setSidebarOpen(false)} style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:16, padding:'2px 6px' }}>✕</button>
+        </div>
 
-          {/* ── ORIGIN with current location ── */}
+        <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+
+          {/* Origin with location button */}
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs text-slate-500">Origin</label>
-              <button
-                onClick={useCurrentLocation}
-                disabled={locating}
-                className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50"
-              >
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:5 }}>
+              <label style={{ fontSize:12, fontWeight:500, color:'#6b7280' }}>Origin</label>
+              <button onClick={useCurrentLocation} disabled={locating}
+                style={{ fontSize:11, color:'#6d28d9', background:'transparent', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:4, opacity:locating?0.6:1 }}>
                 {locating ? (
-                  <>
-                    <div className="w-3 h-3 border-2 border-primary-400/30 border-t-primary-400 rounded-full animate-spin" />
-                    <span>Locating...</span>
-                  </>
+                  <><div style={{ width:10, height:10, border:'1.5px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} /><span>Locating...</span></>
                 ) : (
-                  <>
-                    <span style={{ fontSize: 11 }}>📍</span>
-                    <span>Use my location</span>
-                  </>
+                  <><span>📍</span><span>My location</span></>
                 )}
               </button>
             </div>
             <SearchBox
-              label=""
-              placeholder="e.g. Connaught Place, Delhi"
+              label="" placeholder="e.g. Connaught Place, Delhi"
               value={origin.label}
-              onChange={(v) => setOrigin(o => ({ ...o, label: v }))}
-              onSelect={(item) => setOrigin({ label: item.label, lat: item.lat, lon: item.lon })}
+              onChange={(v) => setOrigin(o => ({ ...o, label:v }))}
+              onSelect={(item) => setOrigin({ label:item.label, lat:item.lat, lon:item.lon })}
             />
           </div>
 
-          {/* ── DESTINATION ── */}
+          {/* Destination */}
           <SearchBox
-            label="Destination"
-            placeholder="e.g. Taj Mahal, Agra"
+            label="Destination" placeholder="e.g. Taj Mahal, Agra"
             value={dest.label}
-            onChange={(v) => setDest(d => ({ ...d, label: v }))}
-            onSelect={(item) => setDest({ label: item.label, lat: item.lat, lon: item.lon })}
+            onChange={(v) => setDest(d => ({ ...d, label:v }))}
+            onSelect={(item) => setDest({ label:item.label, lat:item.lat, lon:item.lon })}
           />
 
           {/* Display mode */}
           <div>
-            <label className="text-xs text-slate-500 mb-2 block">Display mode</label>
-            <div className="flex gap-2">
-              <button onClick={() => setCompareMode(true)}
-                className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all ${compareMode ? 'bg-primary-500 text-white border-primary-500' : 'bg-dark-700 text-slate-400 border-dark-600 hover:bg-dark-600'}`}>
-                Compare all 3
-              </button>
-              <button onClick={() => setCompareMode(false)}
-                className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all ${!compareMode ? 'bg-primary-500 text-white border-primary-500' : 'bg-dark-700 text-slate-400 border-dark-600 hover:bg-dark-600'}`}>
-                Single route
-              </button>
+            <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Display mode</label>
+            <div style={{ display:'flex', gap:6 }}>
+              {[['true','Compare all 3'],['false','Single route']].map(([val,label]) => (
+                <button key={val} onClick={() => setCompareMode(val==='true')}
+                  style={{ flex:1, padding:'8px 6px', borderRadius:9, border:`1.5px solid ${compareMode===(val==='true')?'#6d28d9':'#e5e7eb'}`, background:compareMode===(val==='true')?'#f5f3ff':'#fff', color:compareMode===(val==='true')?'#6d28d9':'#6b7280', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
 
           {!compareMode && (
             <div>
-              <label className="text-xs text-slate-500 mb-2 block">Route type</label>
-              <div className="flex gap-2">
-                {['fastest','shortest','eco'].map(type => (
+              <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Route type</label>
+              <div style={{ display:'flex', gap:6 }}>
+                {[['fastest','⚡ Fastest'],['shortest','📏 Shortest'],['eco','🌿 Eco']].map(([type,label]) => (
                   <button key={type} onClick={() => setActiveRoute(type)}
-                    className={`flex-1 py-2 text-xs font-semibold rounded-lg border transition-all capitalize ${activeRoute === type ? 'bg-primary-500 text-white border-primary-500' : 'bg-dark-700 text-slate-400 border-dark-600 hover:bg-dark-600'}`}>
-                    {type}
+                    style={{ flex:1, padding:'7px 4px', borderRadius:9, border:`1.5px solid ${activeRoute===type?'#6d28d9':'#e5e7eb'}`, background:activeRoute===type?'#f5f3ff':'#fff', color:activeRoute===type?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
+                    {label}
                   </button>
                 ))}
               </div>
@@ -414,144 +351,110 @@ export default function MapPage() {
           )}
 
           {/* Map layers */}
-          <div className="space-y-2">
-            <label className="text-xs text-slate-500 block">Map layers</label>
-            <TrafficIncidents
-              enabled={showIncidents}
-              onToggle={() => setShowIncidents(s => !s)}
-              incidentCount={incidentCount}
-              onCountChange={setIncidentCount}
-            />
-            <AccidentHotspots
-              enabled={showHotspots}
-              onToggle={() => setShowHotspots(s => !s)}
-              count={hotspotCount}
-            />
+          <div>
+            <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Map layers</label>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <button onClick={() => setShowIncidents(s => !s)} className={`layer-btn ${showIncidents?'active':''}`}>
+                <span>🚧</span>
+                {showIncidents ? `Live incidents ON (${incidentCount} found)` : 'Show live traffic incidents'}
+              </button>
+              <button onClick={() => setShowHotspots(s => !s)} className={`layer-btn ${showHotspots?'active':''}`}>
+                <span>⚠️</span>
+                {showHotspots ? 'Accident hotspots ON' : 'Show accident hotspots'}
+              </button>
+            </div>
           </div>
 
           {/* Live GPS */}
           <div>
-            <label className="text-xs text-slate-500 mb-2 block">Live navigation</label>
+            <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Live navigation</label>
             {!tracking ? (
               <button onClick={startTracking}
-                className="w-full py-2.5 text-xs font-semibold rounded-xl border flex items-center justify-center gap-2 bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20 transition-all">
-                <span className="w-2 h-2 bg-blue-400 rounded-full" />
-                Start Live Navigation
+                style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:8, transition:'all 0.15s' }}
+                onMouseOver={e => { e.currentTarget.style.borderColor='#6d28d9'; e.currentTarget.style.color='#6d28d9' }}
+                onMouseOut={e  => { e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.color='#374151' }}
+              >
+                <span style={{ width:8, height:8, borderRadius:'50%', background:'#22c55e', display:'inline-block' }} />
+                Start live navigation
               </button>
             ) : (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between py-2 px-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-                    <span className="text-xs text-blue-400 font-medium">GPS Active</span>
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:9 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <span style={{ width:7, height:7, borderRadius:'50%', background:'#22c55e', display:'inline-block' }} />
+                    <span style={{ fontSize:12, color:'#15803d', fontWeight:500 }}>GPS Active</span>
                   </div>
-                  {userLocation && (
-                    <span className="text-xs text-slate-400 font-mono">
-                      {userLocation.lat.toFixed(4)}, {userLocation.lon.toFixed(4)}
-                    </span>
-                  )}
+                  {userLocation && <span style={{ fontSize:10, color:'#6b7280', fontFamily:'monospace' }}>{userLocation.lat.toFixed(3)}, {userLocation.lon.toFixed(3)}</span>}
                 </div>
-                <div className="flex gap-2">
+                <div style={{ display:'flex', gap:6 }}>
                   <button onClick={() => setFollowUser(f => !f)}
-                    className={`flex-1 py-2 text-xs rounded-lg border transition-all ${followUser ? 'bg-primary-500/20 text-primary-400 border-primary-500/40' : 'bg-dark-700 text-slate-400 border-dark-600'}`}>
-                    {followUser ? 'Following' : 'Follow me'}
+                    style={{ flex:1, padding:'7px', borderRadius:9, border:`1.5px solid ${followUser?'#6d28d9':'#e5e7eb'}`, background:followUser?'#f5f3ff':'#fff', color:followUser?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                    {followUser ? '📍 Following' : '📍 Follow me'}
                   </button>
                   <button onClick={stopTracking}
-                    className="flex-1 py-2 text-xs rounded-lg border bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20 transition-all">
+                    style={{ flex:1, padding:'7px', borderRadius:9, border:'1px solid #fecaca', background:'#fef2f2', color:'#b91c1c', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
                     Stop GPS
                   </button>
                 </div>
               </div>
             )}
-            {locationError && (
-              <div className="mt-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {locationError}
-              </div>
-            )}
+            {locationError && <div style={{ fontSize:11, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'7px 10px', marginTop:6 }}>{locationError}</div>}
           </div>
 
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-3 py-2 text-xs">
-              {error}
-            </div>
-          )}
+          {error && <div style={{ fontSize:12, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:9, padding:'10px 12px' }}>{error}</div>}
 
-          <button onClick={handleGetRoute} disabled={loading} className="btn-primary w-full">
+          <button onClick={handleGetRoute} disabled={loading}
+            style={{ width:'100%', padding:'12px', borderRadius:12, border:'none', background:'#6d28d9', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'all 0.2s', opacity:loading?0.8:1 }}>
             {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Fetching all routes...
+              <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                <span style={{ width:14, height:14, border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.8s linear infinite', display:'inline-block' }} />
+                Fetching routes...
               </span>
-            ) : 'Get All Routes'}
+            ) : 'Get All Routes →'}
           </button>
 
           {tripSaved && (
-            <div className="text-center text-xs text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg py-2">
+            <div style={{ fontSize:12, color:'#15803d', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:9, padding:'9px 12px', textAlign:'center', fontWeight:500 }}>
               ✅ Trip saved to history
             </div>
           )}
         </div>
 
-        {/* Results */}
+        {/* ── Results ── */}
         {allRoutes.length > 0 && (
-          <div className="px-4 pb-4 space-y-4">
-            <RouteComparison
-              routes={allRoutes}
-              activeRoute={activeRoute}
-              onSelect={setActiveRoute}
-            />
+          <div style={{ padding:'0 16px 24px', display:'flex', flexDirection:'column', gap:16 }}>
 
-            {congestion && (
-              <div className={`rounded-xl p-3 border ${congestionColor[congestion.level] || congestionColor.Low}`}>
-                <div className="text-xs font-bold uppercase tracking-wider mb-1">Congestion Level</div>
-                <div className="text-2xl font-black">{congestion.level}</div>
-                <div className="text-xs mt-1 opacity-70">Score: {congestion.score}/10</div>
-              </div>
-            )}
+            <RouteComparison routes={allRoutes} activeRoute={activeRoute} onSelect={setActiveRoute} />
+
+            {congestion && (() => {
+              const s = CONGESTION_STYLES[congestion.level] || CONGESTION_STYLES.Low
+              return (
+                <div style={{ background:s.bg, border:`1px solid ${s.border}`, borderRadius:12, padding:'12px 14px' }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:s.text, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>Congestion Level</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:s.text }}>{congestion.level}</div>
+                  <div style={{ fontSize:11, color:s.text, opacity:0.75, marginTop:2 }}>Score: {congestion.score}/10</div>
+                </div>
+              )
+            })()}
 
             {weather && (
-              <div className="bg-dark-700 rounded-xl p-3">
-                <div className="text-xs text-slate-500 mb-2">Weather at destination</div>
-                <div className="flex items-center gap-3">
-                  <img src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`}
-                    alt={weather.condition} className="w-12 h-12" />
+              <div style={{ background:'#f9fafb', border:'1px solid #f0f0f0', borderRadius:12, padding:'12px 14px' }}>
+                <div style={{ fontSize:11, fontWeight:600, color:'#9ca3af', marginBottom:8 }}>Weather at destination</div>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <img src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`} alt={weather.condition} style={{ width:44, height:44 }} />
                   <div>
-                    <div className="text-lg font-bold text-white">{weather.temp}°C</div>
-                    <div className="text-xs text-slate-400 capitalize">{weather.description}</div>
-                    <div className="text-xs text-slate-500">
-                      Humidity: {weather.humidity}% · Wind: {weather.windSpeed} m/s
-                    </div>
+                    <div style={{ fontSize:18, fontWeight:800, color:'#111' }}>{weather.temp}°C</div>
+                    <div style={{ fontSize:12, color:'#6b7280', textTransform:'capitalize' }}>{weather.description}</div>
+                    <div style={{ fontSize:11, color:'#9ca3af' }}>Humidity {weather.humidity}% · Wind {weather.windSpeed}m/s</div>
                   </div>
                 </div>
-                {weather.alerts?.map((alert, i) => (
-                  <div key={i} className={`mt-2 text-xs px-3 py-2 rounded-lg ${
-                    alert.type === 'danger'  ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                    alert.type === 'warning' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
-                                               'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                  }`}>
-                    {alert.message}
-                  </div>
-                ))}
               </div>
             )}
 
             <CarbonFootprint routes={allRoutes} activeRoute={activeRoute} />
-
-            <DepartureTime
-              origin={origin}
-              destination={dest}
-              distance={activeRouteData ? parseFloat(activeRouteData.distance) : 20}
-            />
-
-            <PlacesAlongRoute
-              routePoints={activeRouteData?.points || []}
-              onPlacesChange={setRoutePlaces}
-            />
-
-            <LiveSharing
-              userLocation={userLocation}
-              routeContext={{ destination: dest.label }}
-            />
+            <DepartureTime origin={origin} destination={dest} distance={activeRouteData ? parseFloat(activeRouteData.distance) : 20} />
+            <PlacesAlongRoute routePoints={activeRouteData?.points || []} onPlacesChange={setRoutePlaces} />
+            <LiveSharing userLocation={userLocation} routeContext={{ destination:dest.label }} />
 
             {activeRouteData?.instructions?.length > 0 && (
               <Directions
@@ -565,45 +468,25 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* ══════════ MAP ══════════ */}
-      <div style={{ flex: 1, position: 'relative' }}>
-        <MapContainer
-          center={[20.5937, 78.9629]} zoom={5}
-          style={{ height: '100%', width: '100%' }}
-        >
+      {/* ══════ MAP ══════ */}
+      <div style={{ flex:1, position:'relative' }}>
+        <MapContainer center={[20.5937, 78.9629]} zoom={5} style={{ height:'100%', width:'100%' }}>
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             attribution='&copy; OpenStreetMap contributors &copy; CARTO'
           />
 
-          {origin.lat && (
-            <Marker position={[origin.lat, origin.lon]} icon={greenIcon}>
-              <Popup><strong>{origin.label}</strong><br />Origin</Popup>
-            </Marker>
-          )}
-          {dest.lat && (
-            <Marker position={[dest.lat, dest.lon]} icon={redIcon}>
-              <Popup><strong>{dest.label}</strong><br />Destination</Popup>
-            </Marker>
-          )}
+          {origin.lat && <Marker position={[origin.lat, origin.lon]} icon={greenIcon}><Popup><strong>{origin.label}</strong><br/>Origin</Popup></Marker>}
+          {dest.lat   && <Marker position={[dest.lat,   dest.lon]}   icon={redIcon}  ><Popup><strong>{dest.label}</strong><br/>Destination</Popup></Marker>}
 
           {compareMode
             ? allRoutes.map(route => (
-                <Polyline
-                  key={route.key}
-                  positions={route.points}
-                  color={ROUTE_COLORS[route.key]}
-                  weight={activeRoute === route.key ? 6 : 3}
-                  opacity={activeRoute === route.key ? 0.95 : 0.45}
-                  eventHandlers={{ click: () => setActiveRoute(route.key) }}
-                />
+                <Polyline key={route.key} positions={route.points} color={ROUTE_COLORS[route.key]}
+                  weight={activeRoute===route.key ? 6 : 3} opacity={activeRoute===route.key ? 0.95 : 0.5}
+                  eventHandlers={{ click: () => setActiveRoute(route.key) }} />
               ))
             : activeRouteData && (
-                <Polyline
-                  positions={activeRouteData.points}
-                  color={ROUTE_COLORS[activeRoute]}
-                  weight={5} opacity={0.9}
-                />
+                <Polyline positions={activeRouteData.points} color={ROUTE_COLORS[activeRoute]} weight={5} opacity={0.9} />
               )
           }
 
@@ -611,62 +494,41 @@ export default function MapPage() {
 
           {userLocation && (
             <>
-              <Marker position={[userLocation.lat, userLocation.lon]} icon={liveIcon}>
-                <Popup><strong>You are here</strong></Popup>
-              </Marker>
-              <Circle
-                center={[userLocation.lat, userLocation.lon]}
-                radius={80}
-                pathOptions={{ color:'#3b82f6', fillColor:'#3b82f6', fillOpacity:0.1, weight:1 }}
-              />
+              <Marker position={[userLocation.lat, userLocation.lon]} icon={liveIcon}><Popup><strong>You are here</strong></Popup></Marker>
+              <Circle center={[userLocation.lat, userLocation.lon]} radius={80} pathOptions={{ color:'#6d28d9', fillColor:'#6d28d9', fillOpacity:0.1, weight:1 }} />
               <FollowUser position={userLocation} follow={followUser} />
             </>
           )}
 
           <IncidentsLayer enabled={showIncidents} />
-          <HotspotsLayer enabled={showHotspots} />
-          <PlacesLayer places={routePlaces} />
-          <SharedUsersLayer users={sharedUsers} />
-
+          <HotspotsLayer  enabled={showHotspots}  />
+          <PlacesLayer    places={routePlaces}     />
+          <SharedUsersLayer users={sharedUsers}    />
         </MapContainer>
 
-        {/* Desktop route legend */}
-        {compareMode && allRoutes.length > 0 && (
-          <div className="hidden md:block absolute top-4 right-4 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-xl px-4 py-3 space-y-2">
-            <div className="text-xs text-slate-400 font-semibold mb-1">Routes</div>
-            {[
-              { key:'fastest',  color:'#0ea5e9', label:'Fastest'  },
-              { key:'shortest', color:'#a855f7', label:'Shortest' },
-              { key:'eco',      color:'#22c55e', label:'Eco'      },
-            ].map(r => (
-              <div key={r.key} onClick={() => setActiveRoute(r.key)}
-                className="flex items-center gap-2 cursor-pointer hover:opacity-80">
-                <div className="w-6 h-1.5 rounded-full"
-                  style={{ backgroundColor: r.color, opacity: activeRoute === r.key ? 1 : 0.45 }} />
-                <span className={`text-xs ${activeRoute === r.key ? 'text-white font-semibold' : 'text-slate-400'}`}>
-                  {r.label}
-                </span>
-                {activeRoute === r.key && <span className="text-xs text-primary-400">●</span>}
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Open sidebar button — desktop */}
+        <button
+          onClick={() => setSidebarOpen(s => !s)}
+          style={{ position:'absolute', top:16, left:16, zIndex:1000, background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'10px 16px', color:'#374151', fontSize:13, cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:8, boxShadow:'0 2px 12px rgba(0,0,0,0.1)' }}
+        >
+          <span>{sidebarOpen ? '✕' : '☰'}</span>
+          <span style={{ color:'#6d28d9' }}>{sidebarOpen ? 'Close' : 'Search Route'}</span>
+        </button>
 
-        {/* Mobile route legend */}
+        {/* Route legend */}
         {compareMode && allRoutes.length > 0 && (
-          <div className="md:hidden absolute bottom-24 right-3 bg-dark-800/95 border border-dark-600 rounded-xl px-3 py-2 space-y-1.5">
+          <div style={{ position:'absolute', top:16, right:16, zIndex:1000, background:'rgba(255,255,255,0.95)', backdropFilter:'blur(8px)', border:'1px solid #e5e7eb', borderRadius:14, padding:'14px 16px', boxShadow:'0 2px 12px rgba(0,0,0,0.08)' }}>
+            <div style={{ fontSize:11, fontWeight:600, color:'#9ca3af', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>Routes</div>
             {[
-              { key:'fastest',  color:'#0ea5e9', label:'Fast'  },
-              { key:'shortest', color:'#a855f7', label:'Short' },
-              { key:'eco',      color:'#22c55e', label:'Eco'   },
+              { key:'fastest',  color:'#6d28d9', label:'⚡ Fastest'  },
+              { key:'shortest', color:'#0ea5e9', label:'📏 Shortest' },
+              { key:'eco',      color:'#22c55e', label:'🌿 Eco'      },
             ].map(r => (
               <div key={r.key} onClick={() => setActiveRoute(r.key)}
-                className="flex items-center gap-2 cursor-pointer">
-                <div className="w-4 h-1.5 rounded-full"
-                  style={{ backgroundColor: r.color, opacity: activeRoute === r.key ? 1 : 0.4 }} />
-                <span className={`text-xs ${activeRoute === r.key ? 'text-white font-semibold' : 'text-slate-500'}`}>
-                  {r.label}
-                </span>
+                style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, cursor:'pointer', opacity:activeRoute===r.key?1:0.55, transition:'opacity 0.15s' }}>
+                <div style={{ width:20, height:3, borderRadius:2, background:r.color }} />
+                <span style={{ fontSize:12, fontWeight:activeRoute===r.key?700:500, color:activeRoute===r.key?'#111':'#6b7280' }}>{r.label}</span>
+                {activeRoute===r.key && <span style={{ width:6, height:6, borderRadius:'50%', background:r.color, display:'inline-block' }} />}
               </div>
             ))}
           </div>
@@ -674,27 +536,27 @@ export default function MapPage() {
 
         {/* Bottom hint */}
         {allRoutes.length === 0 && !loading && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-2xl px-4 py-2.5 text-xs text-slate-400 pointer-events-none whitespace-nowrap">
-            Tap ☰ to search and plan your route
+          <div style={{ position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)', background:'rgba(255,255,255,0.95)', backdropFilter:'blur(8px)', border:'1px solid #e5e7eb', borderRadius:20, padding:'10px 20px', fontSize:13, color:'#6b7280', pointerEvents:'none', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(0,0,0,0.08)', fontFamily:'inherit' }}>
+            Click ☰ Search Route to plan your journey
           </div>
         )}
 
         {/* Re-center */}
         {tracking && !followUser && (
           <button onClick={() => setFollowUser(true)}
-            className="absolute bottom-24 right-4 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
-            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-            Re-center
+            style={{ position:'absolute', bottom:80, right:16, zIndex:1000, background:'#6d28d9', color:'#fff', border:'none', padding:'10px 18px', borderRadius:12, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.35)' }}>
+            <span style={{ width:7, height:7, borderRadius:'50%', background:'#fff', display:'inline-block' }} />
+            Re-center on me
           </button>
         )}
 
         {/* Loading overlay */}
         {loading && (
-          <div className="absolute inset-0 bg-dark-900/60 flex items-center justify-center" style={{ zIndex: 9997 }}>
-            <div className="bg-dark-800 border border-dark-600 rounded-2xl px-8 py-6 text-center mx-4">
-              <div className="w-10 h-10 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-white font-semibold text-sm">Fetching all 3 routes...</p>
-              <p className="text-slate-400 text-xs mt-1">Fastest · Shortest · Eco</p>
+          <div style={{ position:'absolute', inset:0, background:'rgba(255,255,255,0.7)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9997 }}>
+            <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:20, padding:'28px 36px', textAlign:'center', boxShadow:'0 16px 48px rgba(0,0,0,0.12)' }}>
+              <div style={{ width:40, height:40, border:'3px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 14px' }} />
+              <p style={{ color:'#111', fontWeight:700, fontSize:15, marginBottom:4, fontFamily:'inherit' }}>Fetching all 3 routes...</p>
+              <p style={{ color:'#9ca3af', fontSize:12, fontFamily:'inherit' }}>Fastest · Shortest · Eco</p>
             </div>
           </div>
         )}
@@ -718,6 +580,17 @@ export default function MapPage() {
           }}
         />
       </div>
+
+      <style>{`
+        @media(min-width:768px){
+          .md-sidebar { position:relative !important; transform:translateX(0) !important; box-shadow:none !important; }
+          .mobile-btn  { display:none !important; }
+          .mobile-only { display:none !important; }
+        }
+        @media(max-width:767px){
+          .mobile-btn { display:flex !important; }
+        }
+      `}</style>
     </div>
   )
 }
