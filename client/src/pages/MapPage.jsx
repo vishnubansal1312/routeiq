@@ -118,7 +118,7 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
-      <label className="text-xs text-slate-500 mb-1 block">{label}</label>
+      {label && <label className="text-xs text-slate-500 mb-1 block">{label}</label>}
       <div className="relative">
         <input
           type="text" value={value} onChange={handleInput}
@@ -167,9 +167,48 @@ export default function MapPage() {
   const [followUser, setFollowUser]       = useState(false)
   const [locationError, setLocationError] = useState('')
   const [sidebarOpen, setSidebarOpen]     = useState(false)
+  const [locating, setLocating]           = useState(false)
   const watchIdRef = useRef(null)
 
   const activeRouteData = allRoutes.find(r => r.key === activeRoute) || null
+
+  // ── Use current location for origin ──
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError('GPS not supported on this device')
+      return
+    }
+    setLocating(true)
+    setOrigin(o => ({ ...o, label: 'Getting your location...' }))
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lon } = pos.coords
+        try {
+          const url = `https://api.tomtom.com/search/2/reverseGeocode/${lat},${lon}.json?key=${TOMTOM_KEY}&language=en-GB`
+          const res  = await fetch(url)
+          const data = await res.json()
+          const addr = data.addresses?.[0]?.address
+          const label = addr?.freeformAddress
+            || addr?.municipality
+            || `${lat.toFixed(4)}, ${lon.toFixed(4)}`
+          setOrigin({ label, lat, lon })
+        } catch {
+          setOrigin({
+            label: `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+            lat, lon,
+          })
+        }
+        setLocating(false)
+      },
+      () => {
+        setOrigin({ label: '', lat: null, lon: null })
+        setError('Location access denied. Please allow GPS.')
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
 
   const startTracking = () => {
     setLocationError('')
@@ -242,7 +281,7 @@ export default function MapPage() {
         fuelCost: fastest.fuelCost,
       })
       setTripSaved(true)
-      setSidebarOpen(false) // close sidebar on mobile after getting route
+      setSidebarOpen(false)
 
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to get routes. Try again.')
@@ -254,24 +293,15 @@ export default function MapPage() {
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 56px)', position: 'relative', overflow: 'hidden' }}>
 
-      {/* ── MOBILE TOGGLE BUTTON ── */}
+      {/* ── MOBILE TOGGLE ── */}
       <button
         onClick={() => setSidebarOpen(s => !s)}
         style={{
-          position: 'absolute',
-          top: 12,
-          left: 12,
-          zIndex: 10000,
-          background: '#0f172a',
-          border: '1px solid #334155',
-          borderRadius: 12,
-          padding: '8px 14px',
-          color: 'white',
-          fontSize: 14,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
+          position: 'absolute', top: 12, left: 12, zIndex: 10000,
+          background: '#0f172a', border: '1px solid #334155',
+          borderRadius: 12, padding: '8px 14px', color: 'white',
+          fontSize: 14, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 6,
           boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
         }}
         className="md:hidden"
@@ -286,12 +316,7 @@ export default function MapPage() {
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0,0,0,0.65)',
-            zIndex: 9998,
-          }}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9998 }}
           className="md:hidden"
         />
       )}
@@ -299,19 +324,12 @@ export default function MapPage() {
       {/* ══════════ SIDEBAR ══════════ */}
       <div
         style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          height: '100%',
-          width: 320,
+          position: 'absolute', left: 0, top: 0, height: '100%', width: 320,
           zIndex: 9999,
           transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
           transition: 'transform 0.3s ease',
-          display: 'flex',
-          flexDirection: 'column',
-          overflowY: 'auto',
-          background: '#0f172a',
-          borderRight: '1px solid #1e293b',
+          display: 'flex', flexDirection: 'column', overflowY: 'auto',
+          background: '#0f172a', borderRight: '1px solid #1e293b',
         }}
         className="md:relative md:translate-x-0"
       >
@@ -323,19 +341,44 @@ export default function MapPage() {
             <button
               onClick={() => setSidebarOpen(false)}
               className="md:hidden text-slate-500 hover:text-white text-lg"
-            >
-              ✕
-            </button>
+            >✕</button>
           </div>
 
+          {/* ── ORIGIN with current location ── */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs text-slate-500">Origin</label>
+              <button
+                onClick={useCurrentLocation}
+                disabled={locating}
+                className="flex items-center gap-1 text-xs text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50"
+              >
+                {locating ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-primary-400/30 border-t-primary-400 rounded-full animate-spin" />
+                    <span>Locating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 11 }}>📍</span>
+                    <span>Use my location</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <SearchBox
+              label=""
+              placeholder="e.g. Connaught Place, Delhi"
+              value={origin.label}
+              onChange={(v) => setOrigin(o => ({ ...o, label: v }))}
+              onSelect={(item) => setOrigin({ label: item.label, lat: item.lat, lon: item.lon })}
+            />
+          </div>
+
+          {/* ── DESTINATION ── */}
           <SearchBox
-            label="Origin" placeholder="e.g. Connaught Place, Delhi"
-            value={origin.label}
-            onChange={(v) => setOrigin(o => ({ ...o, label: v }))}
-            onSelect={(item) => setOrigin({ label: item.label, lat: item.lat, lon: item.lon })}
-          />
-          <SearchBox
-            label="Destination" placeholder="e.g. Taj Mahal, Agra"
+            label="Destination"
+            placeholder="e.g. Taj Mahal, Agra"
             value={dest.label}
             onChange={(v) => setDest(d => ({ ...d, label: v }))}
             onSelect={(item) => setDest({ label: item.label, lat: item.lat, lon: item.lon })}
@@ -493,19 +536,23 @@ export default function MapPage() {
             )}
 
             <CarbonFootprint routes={allRoutes} activeRoute={activeRoute} />
+
             <DepartureTime
               origin={origin}
               destination={dest}
               distance={activeRouteData ? parseFloat(activeRouteData.distance) : 20}
             />
+
             <PlacesAlongRoute
               routePoints={activeRouteData?.points || []}
               onPlacesChange={setRoutePlaces}
             />
+
             <LiveSharing
               userLocation={userLocation}
               routeContext={{ destination: dest.label }}
             />
+
             {activeRouteData?.instructions?.length > 0 && (
               <Directions
                 instructions={activeRouteData.instructions}
@@ -583,7 +630,7 @@ export default function MapPage() {
 
         </MapContainer>
 
-        {/* Route legend — desktop only */}
+        {/* Desktop route legend */}
         {compareMode && allRoutes.length > 0 && (
           <div className="hidden md:block absolute top-4 right-4 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-xl px-4 py-3 space-y-2">
             <div className="text-xs text-slate-400 font-semibold mb-1">Routes</div>
@@ -632,7 +679,7 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* Re-center button */}
+        {/* Re-center */}
         {tracking && !followUser && (
           <button onClick={() => setFollowUser(true)}
             className="absolute bottom-24 right-4 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
