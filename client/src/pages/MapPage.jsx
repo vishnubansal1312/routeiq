@@ -117,7 +117,7 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
   }
 
   return (
-    <div ref={wrapRef} style={{ position:'relative' }}>
+    <div ref={wrapRef} style={{ position: 'relative' }}>
       <label className="text-xs text-slate-500 mb-1 block">{label}</label>
       <div className="relative">
         <input
@@ -178,7 +178,7 @@ export default function MapPage() {
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
       () => { setLocationError('Location denied — please allow GPS'); setTracking(false) },
-      { enableHighAccuracy:true, maximumAge:3000, timeout:10000 }
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
     )
   }
 
@@ -198,15 +198,13 @@ export default function MapPage() {
     }
     setLoading(true); setError('')
     setAllRoutes([]); setWeather(null); setCongestion(null); setTripSaved(false)
-    // close sidebar on mobile after getting route
-    setSidebarOpen(false)
 
     try {
       const [routesRes, weatherRes] = await Promise.all([
         api.get('/api/routes/all', {
           params: {
             originLat: origin.lat, originLon: origin.lon,
-            destLat:   dest.lat,   destLon:   dest.lon,
+            destLat: dest.lat, destLon: dest.lon,
           }
         }),
         api.get('/api/weather', { params: { lat: dest.lat, lon: dest.lon } })
@@ -230,13 +228,21 @@ export default function MapPage() {
       await api.post('/api/trips', {
         origin:      { label: origin.label, lat: origin.lat, lon: origin.lon },
         destination: { label: dest.label,   lat: dest.lat,   lon: dest.lon   },
-        routeType: activeRoute, distance: parseFloat(fastest.distance),
-        duration: fastest.duration, congestionScore: predRes.data.score,
+        routeType: activeRoute,
+        distance: parseFloat(fastest.distance),
+        duration: fastest.duration,
+        congestionScore: predRes.data.score,
         congestionLevel: predRes.data.level,
-        weather: { temp: weatherRes.data.temp, condition: weatherRes.data.condition, icon: weatherRes.data.icon },
-        tollCost: fastest.tollCost, fuelCost: fastest.fuelCost,
+        weather: {
+          temp: weatherRes.data.temp,
+          condition: weatherRes.data.condition,
+          icon: weatherRes.data.icon,
+        },
+        tollCost: fastest.tollCost,
+        fuelCost: fastest.fuelCost,
       })
       setTripSaved(true)
+      setSidebarOpen(false) // close sidebar on mobile after getting route
 
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to get routes. Try again.')
@@ -246,34 +252,77 @@ export default function MapPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)] relative overflow-hidden">
+    <div style={{ display: 'flex', height: 'calc(100vh - 56px)', position: 'relative', overflow: 'hidden' }}>
 
-      {/* ── Mobile overlay ── */}
+      {/* ── MOBILE TOGGLE BUTTON ── */}
+      <button
+        onClick={() => setSidebarOpen(s => !s)}
+        style={{
+          position: 'absolute',
+          top: 12,
+          left: 12,
+          zIndex: 10000,
+          background: '#0f172a',
+          border: '1px solid #334155',
+          borderRadius: 12,
+          padding: '8px 14px',
+          color: 'white',
+          fontSize: 14,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+        }}
+        className="md:hidden"
+      >
+        <span style={{ fontSize: 16 }}>{sidebarOpen ? '✕' : '☰'}</span>
+        <span style={{ fontSize: 11, color: '#94a3b8' }}>
+          {sidebarOpen ? 'Close' : 'Search Route'}
+        </span>
+      </button>
+
+      {/* ── MOBILE OVERLAY ── */}
       {sidebarOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/60 z-20"
           onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            zIndex: 9998,
+          }}
+          className="md:hidden"
         />
       )}
 
-      {/* ════════ SIDEBAR ════════ */}
-      <div className={`
-        absolute md:relative z-30
-        w-72 md:w-80 h-full
-        bg-dark-800 border-r border-dark-700
-        flex flex-col overflow-y-auto
-        transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        <div className="p-4 space-y-3">
-
+      {/* ══════════ SIDEBAR ══════════ */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          height: '100%',
+          width: 320,
+          zIndex: 9999,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.3s ease',
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'auto',
+          background: '#0f172a',
+          borderRight: '1px solid #1e293b',
+        }}
+        className="md:relative md:translate-x-0"
+      >
+        <div className="p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
               Plan Your Route
             </h2>
             <button
-              className="md:hidden text-slate-400 hover:text-white p-1"
               onClick={() => setSidebarOpen(false)}
+              className="md:hidden text-slate-500 hover:text-white text-lg"
             >
               ✕
             </button>
@@ -307,7 +356,6 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* Single route selector */}
           {!compareMode && (
             <div>
               <label className="text-xs text-slate-500 mb-2 block">Route type</label>
@@ -356,7 +404,7 @@ export default function MapPage() {
                   </div>
                   {userLocation && (
                     <span className="text-xs text-slate-400 font-mono">
-                      {userLocation.lat.toFixed(3)}, {userLocation.lon.toFixed(3)}
+                      {userLocation.lat.toFixed(4)}, {userLocation.lon.toFixed(4)}
                     </span>
                   )}
                 </div>
@@ -389,7 +437,7 @@ export default function MapPage() {
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Fetching routes...
+                Fetching all routes...
               </span>
             ) : 'Get All Routes'}
           </button>
@@ -404,7 +452,6 @@ export default function MapPage() {
         {/* Results */}
         {allRoutes.length > 0 && (
           <div className="px-4 pb-4 space-y-4">
-
             <RouteComparison
               routes={allRoutes}
               activeRoute={activeRoute}
@@ -423,11 +470,14 @@ export default function MapPage() {
               <div className="bg-dark-700 rounded-xl p-3">
                 <div className="text-xs text-slate-500 mb-2">Weather at destination</div>
                 <div className="flex items-center gap-3">
-                  <img src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`} alt={weather.condition} className="w-12 h-12" />
+                  <img src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`}
+                    alt={weather.condition} className="w-12 h-12" />
                   <div>
                     <div className="text-lg font-bold text-white">{weather.temp}°C</div>
                     <div className="text-xs text-slate-400 capitalize">{weather.description}</div>
-                    <div className="text-xs text-slate-500">Humidity: {weather.humidity}% · Wind: {weather.windSpeed} m/s</div>
+                    <div className="text-xs text-slate-500">
+                      Humidity: {weather.humidity}% · Wind: {weather.windSpeed} m/s
+                    </div>
                   </div>
                 </div>
                 {weather.alerts?.map((alert, i) => (
@@ -443,23 +493,19 @@ export default function MapPage() {
             )}
 
             <CarbonFootprint routes={allRoutes} activeRoute={activeRoute} />
-
             <DepartureTime
               origin={origin}
               destination={dest}
               distance={activeRouteData ? parseFloat(activeRouteData.distance) : 20}
             />
-
             <PlacesAlongRoute
               routePoints={activeRouteData?.points || []}
               onPlacesChange={setRoutePlaces}
             />
-
             <LiveSharing
               userLocation={userLocation}
               routeContext={{ destination: dest.label }}
             />
-
             {activeRouteData?.instructions?.length > 0 && (
               <Directions
                 instructions={activeRouteData.instructions}
@@ -472,21 +518,11 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* ════════ MAP ════════ */}
-      <div className="flex-1 relative">
-
-        {/* Mobile sidebar toggle button */}
-        <button
-          onClick={() => setSidebarOpen(s => !s)}
-          className="md:hidden absolute top-3 left-3 z-40 bg-dark-800/95 border border-dark-600 rounded-xl px-3 py-2 shadow-lg flex items-center gap-2"
-        >
-          <span className="text-white text-sm">☰</span>
-          <span className="text-xs text-slate-300 font-semibold">Route</span>
-        </button>
-
+      {/* ══════════ MAP ══════════ */}
+      <div style={{ flex: 1, position: 'relative' }}>
         <MapContainer
           center={[20.5937, 78.9629]} zoom={5}
-          style={{ height:'100%', width:'100%' }}
+          style={{ height: '100%', width: '100%' }}
         >
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -498,7 +534,6 @@ export default function MapPage() {
               <Popup><strong>{origin.label}</strong><br />Origin</Popup>
             </Marker>
           )}
-
           {dest.lat && (
             <Marker position={[dest.lat, dest.lon]} icon={redIcon}>
               <Popup><strong>{dest.label}</strong><br />Destination</Popup>
@@ -548,9 +583,9 @@ export default function MapPage() {
 
         </MapContainer>
 
-        {/* Route legend — desktop */}
+        {/* Route legend — desktop only */}
         {compareMode && allRoutes.length > 0 && (
-          <div className="absolute top-4 right-4 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-xl px-4 py-3 space-y-2 hidden md:block">
+          <div className="hidden md:block absolute top-4 right-4 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-xl px-4 py-3 space-y-2">
             <div className="text-xs text-slate-400 font-semibold mb-1">Routes</div>
             {[
               { key:'fastest',  color:'#0ea5e9', label:'Fastest'  },
@@ -572,17 +607,17 @@ export default function MapPage() {
 
         {/* Mobile route legend */}
         {compareMode && allRoutes.length > 0 && (
-          <div className="md:hidden absolute top-3 right-3 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-xl px-3 py-2 space-y-1.5">
+          <div className="md:hidden absolute bottom-24 right-3 bg-dark-800/95 border border-dark-600 rounded-xl px-3 py-2 space-y-1.5">
             {[
-              { key:'fastest',  color:'#0ea5e9', label:'F' },
-              { key:'shortest', color:'#a855f7', label:'S' },
-              { key:'eco',      color:'#22c55e', label:'E' },
+              { key:'fastest',  color:'#0ea5e9', label:'Fast'  },
+              { key:'shortest', color:'#a855f7', label:'Short' },
+              { key:'eco',      color:'#22c55e', label:'Eco'   },
             ].map(r => (
               <div key={r.key} onClick={() => setActiveRoute(r.key)}
-                className="flex items-center gap-1.5 cursor-pointer">
+                className="flex items-center gap-2 cursor-pointer">
                 <div className="w-4 h-1.5 rounded-full"
                   style={{ backgroundColor: r.color, opacity: activeRoute === r.key ? 1 : 0.4 }} />
-                <span className={`text-xs ${activeRoute === r.key ? 'text-white font-bold' : 'text-slate-500'}`}>
+                <span className={`text-xs ${activeRoute === r.key ? 'text-white font-semibold' : 'text-slate-500'}`}>
                   {r.label}
                 </span>
               </div>
@@ -592,8 +627,8 @@ export default function MapPage() {
 
         {/* Bottom hint */}
         {allRoutes.length === 0 && !loading && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-2xl px-4 py-2.5 text-xs text-slate-400 pointer-events-none text-center whitespace-nowrap">
-            Tap ☰ Route to plan your journey
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-2xl px-4 py-2.5 text-xs text-slate-400 pointer-events-none whitespace-nowrap">
+            Tap ☰ to search and plan your route
           </div>
         )}
 
@@ -608,7 +643,7 @@ export default function MapPage() {
 
         {/* Loading overlay */}
         {loading && (
-          <div className="absolute inset-0 bg-dark-900/50 flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-dark-900/60 flex items-center justify-center" style={{ zIndex: 9997 }}>
             <div className="bg-dark-800 border border-dark-600 rounded-2xl px-8 py-6 text-center mx-4">
               <div className="w-10 h-10 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin mx-auto mb-3" />
               <p className="text-white font-semibold text-sm">Fetching all 3 routes...</p>
