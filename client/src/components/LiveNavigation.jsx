@@ -17,10 +17,29 @@ function getIcon(instruction) {
   return '↑'
 }
 
+function getManeuverColor(instruction) {
+  if (!instruction) return '#6d28d9'
+  const t = instruction.toLowerCase()
+  if (t.includes('right'))  return '#0ea5e9'
+  if (t.includes('left'))   return '#f97316'
+  if (t.includes('arrive')) return '#22c55e'
+  if (t.includes('depart')) return '#6d28d9'
+  return '#6d28d9'
+}
+
 function formatDist(meters) {
-  if (!meters) return ''
+  if (!meters && meters !== 0) return ''
   if (meters >= 1000) return `${(meters/1000).toFixed(1)} km`
+  if (meters >= 100)  return `${Math.round(meters/10)*10} m`
   return `${Math.round(meters)} m`
+}
+
+function formatTime(seconds) {
+  if (!seconds) return ''
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor((seconds % 3600) / 60)
+  if (h > 0) return `${h}h ${m}m`
+  return `${m} min`
 }
 
 function calcDistance(lat1, lon1, lat2, lon2) {
@@ -44,27 +63,64 @@ function findNearestStepIndex(userLat, userLon, instructions) {
   return nearest
 }
 
-export default function LiveNavigation({ instructions, userLocation, totalDistance, totalDuration, onClose }) {
-  const [currentStep, setCurrentStep] = useState(0)
-  const [voiceOn,     setVoiceOn]     = useState(true)
-  const [arrived,     setArrived]     = useState(false)
+function calcSpeed(prevPos, currPos, deltaMs) {
+  if (!prevPos || !currPos || deltaMs <= 0) return 0
+  const dist = calcDistance(prevPos.lat, prevPos.lon, currPos.lat, currPos.lon)
+  return Math.round((dist / deltaMs) * 3600) // km/h
+}
+
+export default function LiveNavigation({
+  instructions, userLocation, totalDistance, totalDuration, onClose, onZoomRequest
+}) {
+  const [currentStep, setCurrentStep]   = useState(0)
+  const [voiceOn,     setVoiceOn]       = useState(true)
+  const [arrived,     setArrived]       = useState(false)
+  const [speed,       setSpeed]         = useState(0)
+  const [distLeft,    setDistLeft]      = useState(null)
+  const [timeLeft,    setTimeLeft]      = useState(null)
   const lastSpokenStep = useRef(-1)
+  const prevPosition   = useRef(null)
+  const prevTime       = useRef(null)
 
   const steps    = instructions || []
   const step     = steps[currentStep]
   const nextStep = steps[currentStep + 1]
+  const color    = getManeuverColor(step?.instruction)
 
+  // Auto-advance + speed + distance tracking
   useEffect(() => {
     if (!userLocation || !steps.length) return
+
+    // Calculate speed
+    const now = Date.now()
+    if (prevPosition.current && prevTime.current) {
+      const deltaMs = now - prevTime.current
+      const spd = calcSpeed(prevPosition.current, userLocation, deltaMs)
+      if (spd < 250) setSpeed(spd) // filter GPS noise
+    }
+    prevPosition.current = userLocation
+    prevTime.current = now
+
+    // Find nearest step
     const nearest = findNearestStepIndex(userLocation.lat, userLocation.lon, steps)
     if (nearest > currentStep) setCurrentStep(nearest)
+
+    // Remaining distance to destination
     const lastStep = steps[steps.length - 1]
     if (lastStep?.lat && lastStep?.lon) {
-      const dist = calcDistance(userLocation.lat, userLocation.lon, lastStep.lat, lastStep.lon)
-      if (dist < 50) setArrived(true)
+      const remaining = calcDistance(userLocation.lat, userLocation.lon, lastStep.lat, lastStep.lon)
+      setDistLeft(remaining)
+      // Estimate time remaining (assume avg 40km/h in city)
+      setTimeLeft(Math.round(remaining / 40000 * 3600))
+      if (remaining < 50) setArrived(true)
     }
+
+    // Request map zoom
+    if (onZoomRequest) onZoomRequest(userLocation, 17)
+
   }, [userLocation])
 
+  // Voice announcement
   useEffect(() => {
     if (!voiceOn || !step || lastSpokenStep.current === currentStep) return
     if (!window.speechSynthesis) return
@@ -72,8 +128,9 @@ export default function LiveNavigation({ instructions, userLocation, totalDistan
     window.speechSynthesis.cancel()
     const distText = step.distance ? `In ${formatDist(step.distance)},` : ''
     const msg = new SpeechSynthesisUtterance(`${distText} ${step.instruction || ''}`)
-    msg.lang = 'en-IN'
-    msg.rate = 0.95
+    msg.lang  = 'en-IN'
+    msg.rate  = 0.95
+    msg.pitch = 1
     window.speechSynthesis.speak(msg)
   }, [currentStep, voiceOn])
 
@@ -85,70 +142,79 @@ export default function LiveNavigation({ instructions, userLocation, totalDistan
 
   return (
     <div style={{ position:'absolute', bottom:0, left:0, right:0, zIndex:9998, fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`
+        @keyframes pulse-nav { 0%,100%{transform:scale(1)} 50%{transform:scale(1.05)} }
+        @keyframes slide-up  { from{transform:translateY(100%);opacity:0} to{transform:translateY(0);opacity:1} }
+      `}</style>
 
+      {/* ── Arrived ── */}
       {arrived ? (
-        <div style={{ background:'#6d28d9', color:'#fff', padding:'24px', textAlign:'center' }}>
-          <div style={{ fontSize:40, marginBottom:8 }}>🎉</div>
-          <div style={{ fontSize:22, fontWeight:800, marginBottom:4 }}>You have arrived!</div>
-          <div style={{ fontSize:14, opacity:0.8, marginBottom:16 }}>You reached your destination</div>
+        <div style={{ background:'#6d28d9', padding:'28px 24px', textAlign:'center', animation:'slide-up 0.4s ease' }}>
+          <div style={{ fontSize:44, marginBottom:10 }}>🎉</div>
+          <div style={{ fontSize:24, fontWeight:800, color:'#fff', marginBottom:6 }}>You have arrived!</div>
+          <div style={{ fontSize:14, color:'rgba(255,255,255,0.7)', marginBottom:20 }}>You reached your destination</div>
           <button onClick={onClose}
-            style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'10px 24px', borderRadius:20, cursor:'pointer', fontFamily:'inherit', fontWeight:600, fontSize:14 }}>
-            Done
+            style={{ background:'rgba(255,255,255,0.2)', border:'1px solid rgba(255,255,255,0.3)', color:'#fff', padding:'12px 28px', borderRadius:24, cursor:'pointer', fontFamily:'inherit', fontWeight:700, fontSize:15 }}>
+            Done ✓
           </button>
         </div>
       ) : (
-        <>
-          {/* Next step preview */}
+        <div style={{ animation:'slide-up 0.3s ease' }}>
+
+          {/* ── Next step preview bar ── */}
           {nextStep && (
-            <div style={{ background:'rgba(74,40,174,0.95)', backdropFilter:'blur(8px)', padding:'8px 20px', display:'flex', alignItems:'center', gap:12 }}>
-              <span style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>Then</span>
-              <span style={{ fontSize:20 }}>{getIcon(nextStep.instruction)}</span>
-              <span style={{ fontSize:13, color:'rgba(255,255,255,0.9)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            <div style={{ background:'rgba(26,15,60,0.97)', backdropFilter:'blur(8px)', padding:'8px 20px', display:'flex', alignItems:'center', gap:12, borderTop:`2px solid ${color}30` }}>
+              <span style={{ fontSize:12, color:'rgba(255,255,255,0.5)', flexShrink:0 }}>Then</span>
+              <span style={{ fontSize:18, flexShrink:0 }}>{getIcon(nextStep.instruction)}</span>
+              <span style={{ fontSize:13, color:'rgba(255,255,255,0.8)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {nextStep.instruction}
               </span>
               {nextStep.distance && (
-                <span style={{ fontSize:12, color:'rgba(255,255,255,0.5)', flexShrink:0 }}>
-                  {formatDist(nextStep.distance)}
-                </span>
+                <span style={{ fontSize:12, color:'rgba(255,255,255,0.45)', flexShrink:0 }}>{formatDist(nextStep.distance)}</span>
               )}
             </div>
           )}
 
-          {/* Current step */}
-          <div style={{ background:'#1a0f3c', padding:'16px 20px' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:14 }}>
-              {/* Turn icon box */}
-              <div style={{ width:60, height:60, borderRadius:16, background:'rgba(109,40,217,0.4)', border:'2px solid rgba(167,139,250,0.5)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:30, flexShrink:0 }}>
+          {/* ── Main navigation card ── */}
+          <div style={{ background:'#0f0a1e', padding:'14px 16px' }}>
+
+            {/* Top row — turn + instruction */}
+            <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:14 }}>
+
+              {/* Turn icon */}
+              <div style={{ width:64, height:64, borderRadius:18, background:`${color}20`, border:`2.5px solid ${color}60`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, flexShrink:0, animation:'pulse-nav 2s ease-in-out infinite' }}>
                 {getIcon(step?.instruction)}
               </div>
 
+              {/* Distance + instruction */}
               <div style={{ flex:1, minWidth:0 }}>
-                {distToNext !== null && distToNext < 5000 && (
-                  <div style={{ fontSize:30, fontWeight:800, color:'#fff', lineHeight:1, marginBottom:4 }}>
+                {distToNext !== null && (
+                  <div style={{ fontSize:32, fontWeight:800, color:'#fff', lineHeight:1, marginBottom:4, letterSpacing:'-0.5px' }}>
                     {formatDist(distToNext)}
                   </div>
                 )}
-                <div style={{ fontSize:15, color:'rgba(255,255,255,0.9)', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                <div style={{ fontSize:14, color:'rgba(255,255,255,0.9)', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {step?.instruction}
                 </div>
                 {step?.name && (
-                  <div style={{ fontSize:12, color:'rgba(255,255,255,0.45)', marginTop:3 }}>{step.name}</div>
+                  <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginTop:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    📍 {step.name}
+                  </div>
                 )}
               </div>
 
-              {/* Voice + Close */}
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {/* Controls column */}
+              <div style={{ display:'flex', flexDirection:'column', gap:6, flexShrink:0 }}>
                 <button
                   onClick={() => { setVoiceOn(v => !v); if (voiceOn) window.speechSynthesis?.cancel() }}
-                  style={{ width:38, height:38, borderRadius:19, border:'1px solid rgba(255,255,255,0.2)', background:voiceOn?'rgba(109,40,217,0.5)':'rgba(255,255,255,0.1)', cursor:'pointer', fontSize:17, display:'flex', alignItems:'center', justifyContent:'center' }}
-                  title={voiceOn ? 'Mute voice' : 'Enable voice'}
+                  style={{ width:38, height:38, borderRadius:19, border:`1px solid ${voiceOn?color+'60':'rgba(255,255,255,0.15)'}`, background:voiceOn?`${color}30`:'rgba(255,255,255,0.08)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}
+                  title={voiceOn?'Mute voice':'Enable voice'}
                 >
                   {voiceOn ? '🔊' : '🔇'}
                 </button>
                 <button
                   onClick={onClose}
-                  style={{ width:38, height:38, borderRadius:19, border:'1px solid rgba(255,255,255,0.15)', background:'rgba(239,68,68,0.3)', cursor:'pointer', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', color:'#fca5a5' }}
+                  style={{ width:38, height:38, borderRadius:19, border:'1px solid rgba(239,68,68,0.3)', background:'rgba(239,68,68,0.2)', cursor:'pointer', fontSize:14, display:'flex', alignItems:'center', justifyContent:'center', color:'#fca5a5' }}
                   title="Stop navigation"
                 >
                   ✕
@@ -156,36 +222,59 @@ export default function LiveNavigation({ instructions, userLocation, totalDistan
               </div>
             </div>
 
-            {/* Progress bar + controls */}
+            {/* ── Bottom bar — speed + ETA + progress ── */}
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <button
-                onClick={() => setCurrentStep(s => Math.max(0, s-1))}
-                disabled={currentStep === 0}
-                style={{ padding:'8px 14px', borderRadius:9, border:'1px solid rgba(255,255,255,0.15)', background:'transparent', color:currentStep===0?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.8)', cursor:currentStep===0?'default':'pointer', fontSize:13, fontFamily:'inherit' }}
-              >
-                ← Prev
-              </button>
 
+              {/* Speed display */}
+              <div style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:'6px 12px', textAlign:'center', flexShrink:0, minWidth:64 }}>
+                <div style={{ fontSize:22, fontWeight:800, color:'#fff', lineHeight:1 }}>{speed}</div>
+                <div style={{ fontSize:9, color:'rgba(255,255,255,0.4)', marginTop:2 }}>km/h</div>
+              </div>
+
+              {/* Progress + ETA */}
               <div style={{ flex:1 }}>
                 <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>Step {currentStep+1}/{steps.length}</span>
-                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>{Math.round(totalDistance||0)} km total</span>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+                    {currentStep+1}/{steps.length} steps
+                  </span>
+                  <div style={{ display:'flex', gap:10 }}>
+                    {distLeft !== null && (
+                      <span style={{ fontSize:11, color:'rgba(255,255,255,0.6)', fontWeight:600 }}>
+                        {formatDist(distLeft)} left
+                      </span>
+                    )}
+                    {timeLeft !== null && (
+                      <span style={{ fontSize:11, color:color, fontWeight:600 }}>
+                        ~{formatTime(timeLeft)}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ height:3, background:'rgba(255,255,255,0.1)', borderRadius:2 }}>
-                  <div style={{ height:3, width:`${((currentStep+1)/steps.length)*100}%`, background:'#a78bfa', borderRadius:2, transition:'width 0.5s' }} />
+                <div style={{ height:4, background:'rgba(255,255,255,0.08)', borderRadius:2 }}>
+                  <div style={{ height:4, width:`${((currentStep+1)/steps.length)*100}%`, background:`linear-gradient(90deg,${color},${color}cc)`, borderRadius:2, transition:'width 0.6s ease' }} />
                 </div>
               </div>
 
-              <button
-                onClick={() => setCurrentStep(s => Math.min(steps.length-1, s+1))}
-                disabled={currentStep === steps.length-1}
-                style={{ padding:'8px 14px', borderRadius:9, border:'1px solid rgba(255,255,255,0.15)', background:'rgba(109,40,217,0.4)', color:currentStep===steps.length-1?'rgba(255,255,255,0.25)':'#fff', cursor:currentStep===steps.length-1?'default':'pointer', fontSize:13, fontFamily:'inherit', fontWeight:600 }}
-              >
-                Next →
-              </button>
+              {/* Prev / Next */}
+              <div style={{ display:'flex', gap:5, flexShrink:0 }}>
+                <button
+                  onClick={() => setCurrentStep(s => Math.max(0, s-1))}
+                  disabled={currentStep===0}
+                  style={{ padding:'7px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'transparent', color:currentStep===0?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.7)', cursor:currentStep===0?'default':'pointer', fontSize:12, fontFamily:'inherit' }}
+                >
+                  ‹
+                </button>
+                <button
+                  onClick={() => setCurrentStep(s => Math.min(steps.length-1, s+1))}
+                  disabled={currentStep===steps.length-1}
+                  style={{ padding:'7px 10px', borderRadius:8, border:`1px solid ${color}50`, background:`${color}20`, color:currentStep===steps.length-1?'rgba(255,255,255,0.2)':'#fff', cursor:currentStep===steps.length-1?'default':'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700 }}
+                >
+                  ›
+                </button>
+              </div>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   )

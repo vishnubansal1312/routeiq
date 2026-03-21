@@ -32,12 +32,6 @@ const redIcon = new L.Icon({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
   iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34],
 })
-const liveIcon = new L.DivIcon({
-  className: '',
-  html: `<div style="width:18px;height:18px;background:#6d28d9;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(109,40,217,0.3);animation:pulse-gps 1.5s infinite"></div>
-  <style>@keyframes pulse-gps{0%{box-shadow:0 0 0 0 rgba(109,40,217,0.4)}100%{box-shadow:0 0 0 14px rgba(109,40,217,0)}}</style>`,
-  iconSize:[18,18], iconAnchor:[9,9],
-})
 
 const ROUTE_COLORS = { fastest:'#6d28d9', shortest:'#0ea5e9', eco:'#22c55e' }
 
@@ -46,6 +40,19 @@ const CONGESTION_STYLES = {
   Moderate: { bg:'#fefce8', text:'#a16207', border:'#fef08a' },
   High:     { bg:'#fff7ed', text:'#c2410c', border:'#fed7aa' },
   Severe:   { bg:'#fef2f2', text:'#b91c1c', border:'#fecaca' },
+}
+
+function createLiveIcon(navMode) {
+  const color = navMode ? '#6d28d9' : '#3b82f6'
+  const glow  = navMode ? 'rgba(109,40,217,0.4)' : 'rgba(59,130,246,0.4)'
+  return new L.DivIcon({
+    className: '',
+    html: `<div style="width:20px;height:20px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px ${glow};animation:pulse-gps 1.5s infinite;position:relative;">
+      ${navMode ? `<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid ${color};"></div>` : ''}
+    </div>
+    <style>@keyframes pulse-gps{0%{box-shadow:0 0 0 0 ${glow}}100%{box-shadow:0 0 0 14px rgba(0,0,0,0)}}</style>`,
+    iconSize:[20,20], iconAnchor:[10,10],
+  })
 }
 
 function FlyToRoutes({ allRoutes }) {
@@ -58,12 +65,13 @@ function FlyToRoutes({ allRoutes }) {
   return null
 }
 
-function FollowUser({ position, follow }) {
+function FollowUser({ position, follow, navMode }) {
   const map = useMap()
   useEffect(() => {
-    if (position && follow)
-      map.setView([position.lat, position.lon], Math.max(map.getZoom(), 16), { animate:true })
-  }, [position, follow])
+    if (!position || !follow) return
+    const zoom = navMode ? 17 : Math.max(map.getZoom(), 15)
+    map.setView([position.lat, position.lon], zoom, { animate:true, duration:0.5 })
+  }, [position, follow, navMode])
   return null
 }
 
@@ -171,6 +179,7 @@ export default function MapPage() {
   const watchIdRef = useRef(null)
 
   const activeRouteData = allRoutes.find(r => r.key === activeRoute) || null
+  const liveIcon        = createLiveIcon(navMode)
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) { setError('GPS not supported'); return }
@@ -254,11 +263,13 @@ export default function MapPage() {
     startTracking()
     setNavMode(true)
     setFollowUser(true)
+    setCompareMode(false)
     setSidebarOpen(false)
   }
 
   const stopNavigation = () => {
     setNavMode(false)
+    setCompareMode(true)
     stopTracking()
   }
 
@@ -268,15 +279,20 @@ export default function MapPage() {
       <style>{`
         @keyframes spin    { to{transform:rotate(360deg)} }
         @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        .layer-btn { width:100%; padding:9px 12px; border-radius:9px; border:1px solid #e5e7eb; background:#fff; font-size:12px; font-weight:500; cursor:pointer; font-family:inherit; display:flex; align-items:center; gap:8px; transition:all 0.15s; color:#374151; text-align:left; }
-        .layer-btn:hover { border-color:#6d28d9; color:#6d28d9; background:#faf5ff; }
+        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .layer-btn {
+          width:100%; padding:9px 12px; border-radius:9px; border:1px solid #e5e7eb;
+          background:#fff; font-size:12px; font-weight:500; cursor:pointer;
+          font-family:inherit; display:flex; align-items:center; gap:8px;
+          transition:all 0.15s; color:#374151; text-align:left;
+        }
+        .layer-btn:hover  { border-color:#6d28d9; color:#6d28d9; background:#faf5ff; }
         .layer-btn.active { background:#f5f3ff; border-color:#6d28d9; color:#6d28d9; font-weight:600; }
-        .sidebar-scroll::-webkit-scrollbar { width:4px; }
-        .sidebar-scroll::-webkit-scrollbar-track { background:transparent; }
-        .sidebar-scroll::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:2px; }
+        .sidebar-inner::-webkit-scrollbar { width:3px; }
+        .sidebar-inner::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:2px; }
         @media(min-width:768px){
           .md-sidebar { position:relative !important; transform:translateX(0) !important; box-shadow:none !important; }
-          .mobile-toggle { display:none !important; }
+          .mobile-toggle  { display:none !important; }
           .mobile-overlay { display:none !important; }
         }
         @media(max-width:767px){
@@ -305,7 +321,7 @@ export default function MapPage() {
 
       {/* ══════════ SIDEBAR ══════════ */}
       <div
-        className="md-sidebar sidebar-scroll"
+        className="md-sidebar sidebar-inner"
         style={{
           position:'absolute', left:0, top:0, height:'100%', width:300, zIndex:9999,
           transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
@@ -324,47 +340,39 @@ export default function MapPage() {
           <button onClick={() => setSidebarOpen(false)} style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:18, padding:'2px 6px', lineHeight:1 }}>✕</button>
         </div>
 
-        <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14, flex:1 }}>
+        <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
 
-          {/* ── Origin ── */}
+          {/* Origin */}
           <div>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:5 }}>
               <label style={{ fontSize:12, fontWeight:500, color:'#6b7280' }}>Origin</label>
-              <button
-                onClick={useCurrentLocation}
-                disabled={locating}
-                style={{ fontSize:11, color:'#6d28d9', background:'transparent', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:4, opacity:locating?0.6:1 }}
-              >
-                {locating ? (
-                  <><div style={{ width:10, height:10, border:'1.5px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} /><span>Locating...</span></>
-                ) : (
-                  <><span>📍</span><span>My location</span></>
-                )}
+              <button onClick={useCurrentLocation} disabled={locating}
+                style={{ fontSize:11, color:'#6d28d9', background:'transparent', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:4, opacity:locating?0.6:1 }}>
+                {locating
+                  ? <><div style={{ width:10, height:10, border:'1.5px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} /><span>Locating...</span></>
+                  : <><span>📍</span><span>My location</span></>
+                }
               </button>
             </div>
-            <SearchBox
-              label=""
-              placeholder="e.g. Connaught Place, Delhi"
+            <SearchBox label="" placeholder="e.g. Connaught Place, Delhi"
               value={origin.label}
               onChange={(v) => setOrigin(o => ({ ...o, label:v }))}
               onSelect={(item) => setOrigin({ label:item.label, lat:item.lat, lon:item.lon })}
             />
           </div>
 
-          {/* ── Destination ── */}
-          <SearchBox
-            label="Destination"
-            placeholder="e.g. Taj Mahal, Agra"
+          {/* Destination */}
+          <SearchBox label="Destination" placeholder="e.g. Taj Mahal, Agra"
             value={dest.label}
             onChange={(v) => setDest(d => ({ ...d, label:v }))}
             onSelect={(item) => setDest({ label:item.label, lat:item.lat, lon:item.lon })}
           />
 
-          {/* ── Display mode ── */}
+          {/* Display mode */}
           <div>
             <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Display mode</label>
             <div style={{ display:'flex', gap:6 }}>
-              {[['true','⚖️ Compare all 3'],['false','🗺️ Single route']].map(([val,label]) => (
+              {[['true','⚖️ Compare 3'],['false','🗺️ Single']].map(([val,label]) => (
                 <button key={val} onClick={() => setCompareMode(val==='true')}
                   style={{ flex:1, padding:'8px 4px', borderRadius:9, border:`1.5px solid ${compareMode===(val==='true')?'#6d28d9':'#e5e7eb'}`, background:compareMode===(val==='true')?'#f5f3ff':'#fff', color:compareMode===(val==='true')?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
                   {label}
@@ -373,7 +381,7 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* ── Route type (single mode) ── */}
+          {/* Route type */}
           {!compareMode && (
             <div>
               <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Route type</label>
@@ -388,27 +396,26 @@ export default function MapPage() {
             </div>
           )}
 
-          {/* ── Map layers ── */}
+          {/* Map layers */}
           <div>
             <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Map layers</label>
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               <button onClick={() => setShowIncidents(s => !s)} className={`layer-btn ${showIncidents?'active':''}`}>
                 <span>🚧</span>
-                {showIncidents ? `Live incidents ON (${incidentCount} found)` : 'Show live traffic incidents'}
+                {showIncidents ? `Live incidents ON (${incidentCount})` : 'Live traffic incidents'}
               </button>
               <button onClick={() => setShowHotspots(s => !s)} className={`layer-btn ${showHotspots?'active':''}`}>
                 <span>⚠️</span>
-                {showHotspots ? 'Accident hotspots ON' : 'Show accident hotspots'}
+                {showHotspots ? 'Hotspots ON' : 'Accident hotspots'}
               </button>
             </div>
           </div>
 
-          {/* ── Live GPS ── */}
+          {/* Live GPS */}
           <div>
             <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Live GPS</label>
             {!tracking ? (
-              <button
-                onClick={startTracking}
+              <button onClick={startTracking}
                 style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:8, transition:'all 0.15s' }}
                 onMouseOver={e => { e.currentTarget.style.borderColor='#6d28d9'; e.currentTarget.style.color='#6d28d9' }}
                 onMouseOut={e  => { e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.color='#374151' }}
@@ -440,19 +447,11 @@ export default function MapPage() {
             {locationError && <div style={{ fontSize:11, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'7px 10px', marginTop:6 }}>{locationError}</div>}
           </div>
 
-          {/* ── Error ── */}
-          {error && (
-            <div style={{ fontSize:12, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:9, padding:'10px 12px' }}>
-              {error}
-            </div>
-          )}
+          {error && <div style={{ fontSize:12, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:9, padding:'10px 12px' }}>{error}</div>}
 
-          {/* ── Get Routes button ── */}
-          <button
-            onClick={handleGetRoute}
-            disabled={loading}
-            style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'#6d28d9', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'all 0.2s', opacity:loading?0.8:1, boxShadow:'0 4px 12px rgba(109,40,217,0.3)' }}
-          >
+          {/* Get Routes */}
+          <button onClick={handleGetRoute} disabled={loading}
+            style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'#6d28d9', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:loading?0.8:1, boxShadow:'0 4px 12px rgba(109,40,217,0.3)', transition:'all 0.2s' }}>
             {loading ? (
               <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                 <span style={{ width:14, height:14, border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.8s linear infinite', display:'inline-block' }} />
@@ -461,41 +460,34 @@ export default function MapPage() {
             ) : '🗺️ Get All Routes'}
           </button>
 
-          {/* ── Trip saved ── */}
           {tripSaved && (
             <div style={{ fontSize:12, color:'#15803d', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:9, padding:'9px 12px', textAlign:'center', fontWeight:500 }}>
               ✅ Trip saved to history
             </div>
           )}
 
-          {/* ── START NAVIGATION button ── */}
+          {/* Start Navigation */}
           {allRoutes.length > 0 && !navMode && (
-            <button
-              onClick={startNavigation}
-              style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'linear-gradient(135deg,#1a0f3c,#6d28d9)', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.4)' }}
-            >
+            <button onClick={startNavigation}
+              style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'linear-gradient(135deg,#1a0f3c,#6d28d9)', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.4)' }}>
               <span style={{ fontSize:18 }}>🧭</span> Start Navigation
             </button>
           )}
 
-          {/* ── Stop Navigation ── */}
+          {/* Stop Navigation */}
           {navMode && (
-            <button
-              onClick={stopNavigation}
-              style={{ width:'100%', padding:'12px', borderRadius:12, border:'1px solid #fecaca', background:'#fef2f2', color:'#b91c1c', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}
-            >
+            <button onClick={stopNavigation}
+              style={{ width:'100%', padding:'12px', borderRadius:12, border:'1px solid #fecaca', background:'#fef2f2', color:'#b91c1c', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
               ✕ Stop Navigation
             </button>
           )}
         </div>
 
-        {/* ══ Route Results ══ */}
+        {/* Route results */}
         {allRoutes.length > 0 && (
           <div style={{ padding:'0 16px 24px', display:'flex', flexDirection:'column', gap:14 }}>
-
             <RouteComparison routes={allRoutes} activeRoute={activeRoute} onSelect={setActiveRoute} />
 
-            {/* Congestion */}
             {congestion && (() => {
               const s = CONGESTION_STYLES[congestion.level] || CONGESTION_STYLES.Low
               return (
@@ -507,7 +499,6 @@ export default function MapPage() {
               )
             })()}
 
-            {/* Weather */}
             {weather && (
               <div style={{ background:'#f9fafb', border:'1px solid #f0f0f0', borderRadius:12, padding:'12px 14px' }}>
                 <div style={{ fontSize:11, fontWeight:600, color:'#9ca3af', marginBottom:8 }}>Weather at destination</div>
@@ -520,7 +511,7 @@ export default function MapPage() {
                   </div>
                 </div>
                 {weather.alerts?.map((alert,i) => (
-                  <div key={i} style={{ marginTop:8, fontSize:11, padding:'7px 10px', borderRadius:8, background: alert.type==='danger'?'#fef2f2':alert.type==='warning'?'#fff7ed':'#eff6ff', color: alert.type==='danger'?'#b91c1c':alert.type==='warning'?'#c2410c':'#1d4ed8' }}>
+                  <div key={i} style={{ marginTop:8, fontSize:11, padding:'7px 10px', borderRadius:8, background:alert.type==='danger'?'#fef2f2':alert.type==='warning'?'#fff7ed':'#eff6ff', color:alert.type==='danger'?'#b91c1c':alert.type==='warning'?'#c2410c':'#1d4ed8' }}>
                     ⚠️ {alert.message}
                   </div>
                 ))}
@@ -532,7 +523,6 @@ export default function MapPage() {
             <PlacesAlongRoute routePoints={activeRouteData?.points || []} onPlacesChange={setRoutePlaces} />
             <LiveSharing userLocation={userLocation} routeContext={{ destination:dest.label }} />
 
-            {/* Directions */}
             {activeRouteData?.instructions?.length > 0 && !navMode && (
               <Directions
                 instructions={activeRouteData.instructions}
@@ -548,10 +538,22 @@ export default function MapPage() {
       {/* ══════════ MAP ══════════ */}
       <div style={{ flex:1, position:'relative' }}>
         <MapContainer center={[20.5937, 78.9629]} zoom={5} style={{ height:'100%', width:'100%' }}>
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-          />
+
+          {/* Switch tile layer based on nav mode */}
+          {navMode ? (
+            <TileLayer
+              key="nav-light"
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              attribution='&copy; OpenStreetMap contributors &copy; CARTO'
+              maxZoom={20}
+            />
+          ) : (
+            <TileLayer
+              key="dark"
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              attribution='&copy; OpenStreetMap contributors &copy; CARTO'
+            />
+          )}
 
           {origin.lat && (
             <Marker position={[origin.lat, origin.lon]} icon={greenIcon}>
@@ -566,22 +568,12 @@ export default function MapPage() {
 
           {compareMode
             ? allRoutes.map(route => (
-                <Polyline
-                  key={route.key}
-                  positions={route.points}
-                  color={ROUTE_COLORS[route.key]}
-                  weight={activeRoute===route.key ? 6 : 3}
-                  opacity={activeRoute===route.key ? 0.95 : 0.5}
-                  eventHandlers={{ click: () => setActiveRoute(route.key) }}
-                />
+                <Polyline key={route.key} positions={route.points} color={ROUTE_COLORS[route.key]}
+                  weight={activeRoute===route.key ? 6 : 3} opacity={activeRoute===route.key ? 0.95 : 0.5}
+                  eventHandlers={{ click: () => setActiveRoute(route.key) }} />
               ))
             : activeRouteData && (
-                <Polyline
-                  positions={activeRouteData.points}
-                  color={ROUTE_COLORS[activeRoute]}
-                  weight={6}
-                  opacity={0.92}
-                />
+                <Polyline positions={activeRouteData.points} color={ROUTE_COLORS[activeRoute]} weight={navMode?7:6} opacity={0.92} />
               )
           }
 
@@ -590,14 +582,17 @@ export default function MapPage() {
           {userLocation && (
             <>
               <Marker position={[userLocation.lat, userLocation.lon]} icon={liveIcon}>
-                <Popup><strong>You are here</strong></Popup>
+                <Popup>
+                  <strong>You are here</strong>
+                  {navMode && <div style={{ fontSize:11, color:'#6b7280', marginTop:4 }}>Navigation active</div>}
+                </Popup>
               </Marker>
               <Circle
                 center={[userLocation.lat, userLocation.lon]}
-                radius={60}
-                pathOptions={{ color:'#6d28d9', fillColor:'#6d28d9', fillOpacity:0.12, weight:1.5 }}
+                radius={navMode ? 30 : 60}
+                pathOptions={{ color:'#6d28d9', fillColor:'#6d28d9', fillOpacity:0.1, weight:1.5 }}
               />
-              <FollowUser position={userLocation} follow={followUser} />
+              <FollowUser position={userLocation} follow={followUser} navMode={navMode} />
             </>
           )}
 
@@ -607,19 +602,25 @@ export default function MapPage() {
           <SharedUsersLayer users={sharedUsers}    />
         </MapContainer>
 
-        {/* Search Route button on map */}
+        {/* Search Route button */}
         <button
           onClick={() => setSidebarOpen(s => !s)}
           style={{ position:'absolute', top:16, left:16, zIndex:1000, background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'10px 18px', color:sidebarOpen?'#6d28d9':'#374151', fontSize:13, cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:8, boxShadow:'0 2px 12px rgba(0,0,0,0.1)', transition:'all 0.15s' }}
-          onMouseOver={e => e.currentTarget.style.borderColor='#6d28d9'}
-          onMouseOut={e  => e.currentTarget.style.borderColor='#e5e7eb'}
         >
           <span style={{ fontSize:15 }}>{sidebarOpen ? '✕' : '☰'}</span>
           <span style={{ color:'#6d28d9' }}>{sidebarOpen ? 'Close' : 'Search Route'}</span>
         </button>
 
+        {/* Navigation mode indicator */}
+        {navMode && (
+          <div style={{ position:'absolute', top:16, left:'50%', transform:'translateX(-50%)', zIndex:1000, background:'#6d28d9', color:'#fff', padding:'8px 20px', borderRadius:24, fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.4)' }}>
+            <span style={{ width:7, height:7, borderRadius:'50%', background:'#a78bfa', display:'inline-block', animation:'pulse-dot 1s infinite' }} />
+            Navigation Active — Street View
+          </div>
+        )}
+
         {/* Route legend */}
-        {compareMode && allRoutes.length > 0 && (
+        {compareMode && allRoutes.length > 0 && !navMode && (
           <div style={{ position:'absolute', top:16, right:16, zIndex:1000, background:'rgba(255,255,255,0.96)', backdropFilter:'blur(8px)', border:'1px solid #e5e7eb', borderRadius:14, padding:'14px 16px', boxShadow:'0 2px 12px rgba(0,0,0,0.08)' }}>
             <div style={{ fontSize:11, fontWeight:600, color:'#9ca3af', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>Routes</div>
             {[
@@ -644,7 +645,7 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* Re-center button */}
+        {/* Re-center */}
         {tracking && !followUser && !navMode && (
           <button onClick={() => setFollowUser(true)}
             style={{ position:'absolute', bottom:80, right:16, zIndex:1000, background:'#6d28d9', color:'#fff', border:'none', padding:'10px 18px', borderRadius:12, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.35)' }}>
@@ -653,7 +654,7 @@ export default function MapPage() {
           </button>
         )}
 
-        {/* Loading overlay */}
+        {/* Loading */}
         {loading && (
           <div style={{ position:'absolute', inset:0, background:'rgba(255,255,255,0.75)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9997 }}>
             <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:20, padding:'28px 36px', textAlign:'center', boxShadow:'0 16px 48px rgba(0,0,0,0.12)' }}>
@@ -664,7 +665,7 @@ export default function MapPage() {
           </div>
         )}
 
-        {/* ── Google Maps style Live Navigation ── */}
+        {/* Google Maps style Live Navigation */}
         {navMode && activeRouteData?.instructions?.length > 0 && (
           <LiveNavigation
             instructions={activeRouteData.instructions}
@@ -672,6 +673,7 @@ export default function MapPage() {
             totalDistance={activeRouteData.distance}
             totalDuration={activeRouteData.duration}
             onClose={stopNavigation}
+            onZoomRequest={() => setFollowUser(true)}
           />
         )}
 
@@ -693,10 +695,6 @@ export default function MapPage() {
           }}
         />
       </div>
-
-      <style>{`
-        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
-      `}</style>
     </div>
   )
 }
