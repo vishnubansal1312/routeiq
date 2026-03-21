@@ -12,7 +12,7 @@ import CarbonFootprint   from '../components/CarbonFootprint'
 import AccidentHotspots, { HotspotsLayer } from '../components/AccidentHotspots'
 import LiveSharing, { SharedUsersLayer }    from '../components/LiveSharing'
 
-const TOMTOM_KEY = 'Ou0ReLCCsOXanPHmbSsBVYlq01MQN2wY'
+const TOMTOM_KEY = 'hZ6CdVAUab6mNAKFG7tL2fuJiqoZzCQL'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
