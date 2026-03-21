@@ -88,7 +88,6 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
     setLoading(true)
     timerRef.current = setTimeout(async () => {
       try {
-        // Call TomTom directly from frontend to avoid server-side API restrictions
         const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(val)}.json?key=${TOMTOM_KEY}&limit=7&countrySet=IN&language=en-GB&typeahead=true`
         const response = await fetch(url)
         const data = await response.json()
@@ -167,6 +166,7 @@ export default function MapPage() {
   const [tracking, setTracking]           = useState(false)
   const [followUser, setFollowUser]       = useState(false)
   const [locationError, setLocationError] = useState('')
+  const [sidebarOpen, setSidebarOpen]     = useState(false)
   const watchIdRef = useRef(null)
 
   const activeRouteData = allRoutes.find(r => r.key === activeRoute) || null
@@ -198,6 +198,8 @@ export default function MapPage() {
     }
     setLoading(true); setError('')
     setAllRoutes([]); setWeather(null); setCongestion(null); setTripSaved(false)
+    // close sidebar on mobile after getting route
+    setSidebarOpen(false)
 
     try {
       const [routesRes, weatherRes] = await Promise.all([
@@ -244,15 +246,38 @@ export default function MapPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)]">
+    <div className="flex h-[calc(100vh-64px)] relative overflow-hidden">
 
-      {/* SIDEBAR */}
-      <div className="w-80 bg-dark-800 border-r border-dark-700 flex flex-col overflow-y-auto">
-        <div className="p-4 space-y-4">
+      {/* ── Mobile overlay ── */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black/60 z-20"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
 
-          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
-            Plan Your Route
-          </h2>
+      {/* ════════ SIDEBAR ════════ */}
+      <div className={`
+        absolute md:relative z-30
+        w-72 md:w-80 h-full
+        bg-dark-800 border-r border-dark-700
+        flex flex-col overflow-y-auto
+        transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        <div className="p-4 space-y-3">
+
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
+              Plan Your Route
+            </h2>
+            <button
+              className="md:hidden text-slate-400 hover:text-white p-1"
+              onClick={() => setSidebarOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
 
           <SearchBox
             label="Origin" placeholder="e.g. Connaught Place, Delhi"
@@ -331,7 +356,7 @@ export default function MapPage() {
                   </div>
                   {userLocation && (
                     <span className="text-xs text-slate-400 font-mono">
-                      {userLocation.lat.toFixed(4)}, {userLocation.lon.toFixed(4)}
+                      {userLocation.lat.toFixed(3)}, {userLocation.lon.toFixed(3)}
                     </span>
                   )}
                 </div>
@@ -364,14 +389,14 @@ export default function MapPage() {
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Fetching all routes...
+                Fetching routes...
               </span>
             ) : 'Get All Routes'}
           </button>
 
           {tripSaved && (
             <div className="text-center text-xs text-green-400 bg-green-400/10 border border-green-400/20 rounded-lg py-2">
-              Trip saved to history
+              ✅ Trip saved to history
             </div>
           )}
         </div>
@@ -398,16 +423,11 @@ export default function MapPage() {
               <div className="bg-dark-700 rounded-xl p-3">
                 <div className="text-xs text-slate-500 mb-2">Weather at destination</div>
                 <div className="flex items-center gap-3">
-                  <img
-                    src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`}
-                    alt={weather.condition} className="w-12 h-12"
-                  />
+                  <img src={`https://openweathermap.org/img/wn/${weather.icon}@2x.png`} alt={weather.condition} className="w-12 h-12" />
                   <div>
                     <div className="text-lg font-bold text-white">{weather.temp}°C</div>
                     <div className="text-xs text-slate-400 capitalize">{weather.description}</div>
-                    <div className="text-xs text-slate-500">
-                      Humidity: {weather.humidity}% · Wind: {weather.windSpeed} m/s
-                    </div>
+                    <div className="text-xs text-slate-500">Humidity: {weather.humidity}% · Wind: {weather.windSpeed} m/s</div>
                   </div>
                 </div>
                 {weather.alerts?.map((alert, i) => (
@@ -452,8 +472,18 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* MAP */}
+      {/* ════════ MAP ════════ */}
       <div className="flex-1 relative">
+
+        {/* Mobile sidebar toggle button */}
+        <button
+          onClick={() => setSidebarOpen(s => !s)}
+          className="md:hidden absolute top-3 left-3 z-40 bg-dark-800/95 border border-dark-600 rounded-xl px-3 py-2 shadow-lg flex items-center gap-2"
+        >
+          <span className="text-white text-sm">☰</span>
+          <span className="text-xs text-slate-300 font-semibold">Route</span>
+        </button>
+
         <MapContainer
           center={[20.5937, 78.9629]} zoom={5}
           style={{ height:'100%', width:'100%' }}
@@ -518,9 +548,9 @@ export default function MapPage() {
 
         </MapContainer>
 
-        {/* Route legend */}
+        {/* Route legend — desktop */}
         {compareMode && allRoutes.length > 0 && (
-          <div className="absolute top-4 right-4 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-xl px-4 py-3 space-y-2">
+          <div className="absolute top-4 right-4 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-xl px-4 py-3 space-y-2 hidden md:block">
             <div className="text-xs text-slate-400 font-semibold mb-1">Routes</div>
             {[
               { key:'fastest',  color:'#0ea5e9', label:'Fastest'  },
@@ -540,29 +570,49 @@ export default function MapPage() {
           </div>
         )}
 
+        {/* Mobile route legend */}
+        {compareMode && allRoutes.length > 0 && (
+          <div className="md:hidden absolute top-3 right-3 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-xl px-3 py-2 space-y-1.5">
+            {[
+              { key:'fastest',  color:'#0ea5e9', label:'F' },
+              { key:'shortest', color:'#a855f7', label:'S' },
+              { key:'eco',      color:'#22c55e', label:'E' },
+            ].map(r => (
+              <div key={r.key} onClick={() => setActiveRoute(r.key)}
+                className="flex items-center gap-1.5 cursor-pointer">
+                <div className="w-4 h-1.5 rounded-full"
+                  style={{ backgroundColor: r.color, opacity: activeRoute === r.key ? 1 : 0.4 }} />
+                <span className={`text-xs ${activeRoute === r.key ? 'text-white font-bold' : 'text-slate-500'}`}>
+                  {r.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Bottom hint */}
         {allRoutes.length === 0 && !loading && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-2xl px-6 py-3 text-sm text-slate-400 pointer-events-none">
-            Enter origin and destination — all 3 routes will appear
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-2xl px-4 py-2.5 text-xs text-slate-400 pointer-events-none text-center whitespace-nowrap">
+            Tap ☰ Route to plan your journey
           </div>
         )}
 
         {/* Re-center button */}
         {tracking && !followUser && (
           <button onClick={() => setFollowUser(true)}
-            className="absolute bottom-24 right-6 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
+            className="absolute bottom-24 right-4 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2">
             <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-            Re-center on me
+            Re-center
           </button>
         )}
 
         {/* Loading overlay */}
         {loading && (
-          <div className="absolute inset-0 bg-dark-900/50 flex items-center justify-center">
-            <div className="bg-dark-800 border border-dark-600 rounded-2xl px-8 py-6 text-center">
+          <div className="absolute inset-0 bg-dark-900/50 flex items-center justify-center z-10">
+            <div className="bg-dark-800 border border-dark-600 rounded-2xl px-8 py-6 text-center mx-4">
               <div className="w-10 h-10 border-4 border-dark-600 border-t-primary-500 rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-white font-semibold">Fetching all 3 routes...</p>
-              <p className="text-slate-400 text-xs mt-1">Fastest · Shortest · Eco simultaneously</p>
+              <p className="text-white font-semibold text-sm">Fetching all 3 routes...</p>
+              <p className="text-slate-400 text-xs mt-1">Fastest · Shortest · Eco</p>
             </div>
           </div>
         )}
