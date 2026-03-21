@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard'
 import History   from './pages/History'
 import Fleet     from './pages/Fleet'
 import Pricing   from './pages/Pricing'
+import Landing   from './pages/Landing'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -42,15 +43,23 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/"          element={<Navigate to="/map" replace />} />
-          <Route path="/login"     element={<PublicRoute><Login /></PublicRoute>} />
-          <Route path="/signup"    element={<PublicRoute><Signup /></PublicRoute>} />
+          {/* Landing page — no navbar, no auth required */}
+          <Route path="/"       element={<Landing />} />
+          <Route path="/home"   element={<Landing />} />
+
+          {/* Auth pages */}
+          <Route path="/login"  element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+
+          {/* App pages — require login */}
           <Route path="/map"       element={<PrivateRoute><Layout><MapPage /></Layout></PrivateRoute>} />
           <Route path="/dashboard" element={<PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>} />
           <Route path="/history"   element={<PrivateRoute><Layout><History /></Layout></PrivateRoute>} />
           <Route path="/fleet"     element={<PrivateRoute><Layout><Fleet /></Layout></PrivateRoute>} />
           <Route path="/pricing"   element={<PrivateRoute><Layout><Pricing /></Layout></PrivateRoute>} />
-          <Route path="*"          element={<Navigate to="/map" replace />} />
+
+          {/* Catch all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
