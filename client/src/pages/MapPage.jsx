@@ -32,9 +32,14 @@ const redIcon = new L.Icon({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
   iconSize:[25,41], iconAnchor:[12,41], popupAnchor:[1,-34],
 })
+const liveIcon = new L.DivIcon({
+  className:'',
+  html:`<div style="width:18px;height:18px;background:#6d28d9;border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px rgba(109,40,217,0.3);animation:pulse-gps 1.5s infinite"></div>
+  <style>@keyframes pulse-gps{0%{box-shadow:0 0 0 0 rgba(109,40,217,0.4)}100%{box-shadow:0 0 0 14px rgba(0,0,0,0)}}</style>`,
+  iconSize:[18,18], iconAnchor:[9,9],
+})
 
 const ROUTE_COLORS = { fastest:'#6d28d9', shortest:'#0ea5e9', eco:'#22c55e' }
-
 const CONGESTION_STYLES = {
   Low:      { bg:'#f0fdf4', text:'#15803d', border:'#bbf7d0' },
   Moderate: { bg:'#fefce8', text:'#a16207', border:'#fef08a' },
@@ -42,17 +47,14 @@ const CONGESTION_STYLES = {
   Severe:   { bg:'#fef2f2', text:'#b91c1c', border:'#fecaca' },
 }
 
-function createLiveIcon(navMode) {
-  const color = navMode ? '#6d28d9' : '#3b82f6'
-  const glow  = navMode ? 'rgba(109,40,217,0.4)' : 'rgba(59,130,246,0.4)'
-  return new L.DivIcon({
-    className: '',
-    html: `<div style="width:20px;height:20px;background:${color};border:3px solid white;border-radius:50%;box-shadow:0 0 0 4px ${glow};animation:pulse-gps 1.5s infinite;position:relative;">
-      ${navMode ? `<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid ${color};"></div>` : ''}
-    </div>
-    <style>@keyframes pulse-gps{0%{box-shadow:0 0 0 0 ${glow}}100%{box-shadow:0 0 0 14px rgba(0,0,0,0)}}</style>`,
-    iconSize:[20,20], iconAnchor:[10,10],
-  })
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+  return isMobile
 }
 
 function FlyToRoutes({ allRoutes }) {
@@ -69,15 +71,14 @@ function FollowUser({ position, follow, navMode }) {
   const map = useMap()
   useEffect(() => {
     if (!position || !follow) return
-    const zoom = navMode ? 17 : Math.max(map.getZoom(), 15)
-    map.setView([position.lat, position.lon], zoom, { animate:true, duration:0.5 })
-  }, [position, follow, navMode])
+    map.setView([position.lat, position.lon], navMode ? 17 : Math.max(map.getZoom(), 15), { animate:true, duration:0.5 })
+  }, [position, follow])
   return null
 }
 
 function SearchBox({ label, placeholder, value, onChange, onSelect }) {
-  const [results, setResults]   = useState([])
-  const [loading, setLoading]   = useState(false)
+  const [results,  setResults]  = useState([])
+  const [loading,  setLoading]  = useState(false)
   const [showDrop, setShowDrop] = useState(false)
   const timerRef = useRef(null)
   const wrapRef  = useRef(null)
@@ -135,10 +136,10 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
         )}
       </div>
       {showDrop && results.length > 0 && (
-        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.1)', zIndex:99999, overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'#fff', border:'1px solid #e5e7eb', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:99999, overflow:'hidden' }}>
           {results.map((r,i) => (
             <div key={i} onMouseDown={() => handleSelect(r)}
-              style={{ padding:'10px 12px', cursor:'pointer', borderBottom:i<results.length-1?'1px solid #f9fafb':'none', transition:'background 0.1s' }}
+              style={{ padding:'10px 12px', cursor:'pointer', borderBottom:i<results.length-1?'1px solid #f9fafb':'none' }}
               onMouseOver={e => e.currentTarget.style.background='#faf5ff'}
               onMouseOut={e  => e.currentTarget.style.background='#fff'}
             >
@@ -153,6 +154,8 @@ function SearchBox({ label, placeholder, value, onChange, onSelect }) {
 }
 
 export default function MapPage() {
+  const isMobile = useIsMobile()
+  const [sidebarOpen,   setSidebarOpen]   = useState(false)
   const [origin,        setOrigin]        = useState({ label:'', lat:null, lon:null })
   const [dest,          setDest]          = useState({ label:'', lat:null, lon:null })
   const [activeRoute,   setActiveRoute]   = useState('fastest')
@@ -166,20 +169,22 @@ export default function MapPage() {
   const [showIncidents, setShowIncidents] = useState(false)
   const [incidentCount, setIncidentCount] = useState(0)
   const [showHotspots,  setShowHotspots]  = useState(false)
-  const [hotspotCount,  setHotspotCount]  = useState(0)
   const [routePlaces,   setRoutePlaces]   = useState([])
   const [sharedUsers,   setSharedUsers]   = useState({})
   const [userLocation,  setUserLocation]  = useState(null)
   const [tracking,      setTracking]      = useState(false)
   const [followUser,    setFollowUser]    = useState(false)
   const [locationError, setLocationError] = useState('')
-  const [sidebarOpen,   setSidebarOpen]   = useState(false)
   const [locating,      setLocating]      = useState(false)
   const [navMode,       setNavMode]       = useState(false)
   const watchIdRef = useRef(null)
 
+  // On desktop sidebar is always open
+  useEffect(() => {
+    setSidebarOpen(!isMobile)
+  }, [isMobile])
+
   const activeRouteData = allRoutes.find(r => r.key === activeRoute) || null
-  const liveIcon        = createLiveIcon(navMode)
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) { setError('GPS not supported'); return }
@@ -192,8 +197,7 @@ export default function MapPage() {
           const res  = await fetch(`https://api.tomtom.com/search/2/reverseGeocode/${lat},${lon}.json?key=${TOMTOM_KEY}&language=en-GB`)
           const data = await res.json()
           const addr = data.addresses?.[0]?.address
-          const label = addr?.freeformAddress || addr?.municipality || `${lat.toFixed(4)}, ${lon.toFixed(4)}`
-          setOrigin({ label, lat, lon })
+          setOrigin({ label: addr?.freeformAddress || `${lat.toFixed(4)}, ${lon.toFixed(4)}`, lat, lon })
         } catch {
           setOrigin({ label:`${lat.toFixed(4)}, ${lon.toFixed(4)}`, lat, lon })
         }
@@ -252,7 +256,7 @@ export default function MapPage() {
         tollCost:fastest.tollCost, fuelCost:fastest.fuelCost,
       })
       setTripSaved(true)
-      setSidebarOpen(false)
+      if (isMobile) setSidebarOpen(false)
     } catch(err) {
       setError(err.response?.data?.error || 'Failed to get routes. Try again.')
     }
@@ -260,232 +264,180 @@ export default function MapPage() {
   }
 
   const startNavigation = () => {
-    startTracking()
-    setNavMode(true)
-    setFollowUser(true)
-    setCompareMode(false)
-    setSidebarOpen(false)
+    startTracking(); setNavMode(true); setFollowUser(true); setCompareMode(false)
+    if (isMobile) setSidebarOpen(false)
   }
 
   const stopNavigation = () => {
-    setNavMode(false)
-    setCompareMode(true)
-    stopTracking()
+    setNavMode(false); setCompareMode(true); stopTracking()
   }
 
-  return (
-    <div style={{ display:'flex', height:'calc(100vh - 56px)', position:'relative', overflow:'hidden', fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-      <style>{`
-        @keyframes spin    { to{transform:rotate(360deg)} }
-        @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        .layer-btn {
-          width:100%; padding:9px 12px; border-radius:9px; border:1px solid #e5e7eb;
-          background:#fff; font-size:12px; font-weight:500; cursor:pointer;
-          font-family:inherit; display:flex; align-items:center; gap:8px;
-          transition:all 0.15s; color:#374151; text-align:left;
-        }
-        .layer-btn:hover  { border-color:#6d28d9; color:#6d28d9; background:#faf5ff; }
-        .layer-btn.active { background:#f5f3ff; border-color:#6d28d9; color:#6d28d9; font-weight:600; }
-        .sidebar-inner::-webkit-scrollbar { width:3px; }
-        .sidebar-inner::-webkit-scrollbar-thumb { background:#e5e7eb; border-radius:2px; }
-        @media(min-width:768px){
-          .md-sidebar { position:relative !important; transform:translateX(0) !important; box-shadow:none !important; }
-          .mobile-toggle  { display:none !important; }
-          .mobile-overlay { display:none !important; }
-        }
-        @media(max-width:767px){
-          .mobile-toggle { display:flex !important; }
-        }
-      `}</style>
+  // Sidebar component
+  const Sidebar = (
+    <div style={{
+      width: isMobile ? '100%' : 300,
+      height: '100%',
+      background:'#fff',
+      borderRight: isMobile ? 'none' : '1px solid #f0f0f0',
+      display:'flex', flexDirection:'column', overflowY:'auto',
+      flexShrink: 0,
+    }}>
+      {/* Header */}
+      <div style={{ padding:'14px 16px', borderBottom:'1px solid #f5f5f5', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ width:24, height:24, background:'#6d28d9', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:10, fontWeight:800 }}>IQ</div>
+          <span style={{ fontSize:13, fontWeight:700, color:'#374151' }}>Plan Your Route</span>
+        </div>
+        {isMobile && (
+          <button onClick={() => setSidebarOpen(false)} style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:20, padding:'2px 6px', lineHeight:1 }}>✕</button>
+        )}
+      </div>
 
-      {/* ── Mobile toggle ── */}
-      <button
-        onClick={() => setSidebarOpen(s => !s)}
-        className="mobile-toggle"
-        style={{ position:'absolute', top:12, left:12, zIndex:10000, background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'8px 14px', color:'#374151', fontSize:13, cursor:'pointer', display:'none', alignItems:'center', gap:6, boxShadow:'0 2px 12px rgba(0,0,0,0.12)', fontFamily:'inherit', fontWeight:600 }}
-      >
-        <span style={{ fontSize:16 }}>{sidebarOpen ? '✕' : '☰'}</span>
-        <span style={{ fontSize:11, color:'#6b7280' }}>{sidebarOpen ? 'Close' : 'Search'}</span>
-      </button>
+      <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14, overflowY:'auto', flex:1 }}>
 
-      {/* ── Mobile overlay ── */}
-      {sidebarOpen && (
-        <div
-          className="mobile-overlay"
-          onClick={() => setSidebarOpen(false)}
-          style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9998 }}
-        />
-      )}
-
-      {/* ══════════ SIDEBAR ══════════ */}
-      <div
-        className="md-sidebar sidebar-inner"
-        style={{
-          position:'absolute', left:0, top:0, height:'100%', width:300, zIndex:9999,
-          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
-          transition:'transform 0.3s ease',
-          background:'#fff', borderRight:'1px solid #f0f0f0',
-          display:'flex', flexDirection:'column', overflowY:'auto',
-          boxShadow:'4px 0 20px rgba(0,0,0,0.06)',
-        }}
-      >
-        {/* Sidebar header */}
-        <div style={{ padding:'14px 16px', borderBottom:'1px solid #f5f5f5', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ width:24, height:24, background:'#6d28d9', borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:10, fontWeight:800 }}>IQ</div>
-            <span style={{ fontSize:13, fontWeight:700, color:'#374151' }}>Plan Your Route</span>
+        {/* Origin */}
+        <div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:5 }}>
+            <label style={{ fontSize:12, fontWeight:500, color:'#6b7280' }}>Origin</label>
+            <button onClick={useCurrentLocation} disabled={locating}
+              style={{ fontSize:11, color:'#6d28d9', background:'transparent', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:4, opacity:locating?0.6:1 }}>
+              {locating
+                ? <><div style={{ width:10, height:10, border:'1.5px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} /><span>Locating...</span></>
+                : <><span>📍</span><span>My location</span></>
+              }
+            </button>
           </div>
-          <button onClick={() => setSidebarOpen(false)} style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:18, padding:'2px 6px', lineHeight:1 }}>✕</button>
+          <SearchBox label="" placeholder="e.g. Connaught Place, Delhi"
+            value={origin.label}
+            onChange={(v) => setOrigin(o => ({ ...o, label:v }))}
+            onSelect={(item) => setOrigin({ label:item.label, lat:item.lat, lon:item.lon })}
+          />
         </div>
 
-        <div style={{ padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+        {/* Destination */}
+        <SearchBox label="Destination" placeholder="e.g. Taj Mahal, Agra"
+          value={dest.label}
+          onChange={(v) => setDest(d => ({ ...d, label:v }))}
+          onSelect={(item) => setDest({ label:item.label, lat:item.lat, lon:item.lon })}
+        />
 
-          {/* Origin */}
-          <div>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:5 }}>
-              <label style={{ fontSize:12, fontWeight:500, color:'#6b7280' }}>Origin</label>
-              <button onClick={useCurrentLocation} disabled={locating}
-                style={{ fontSize:11, color:'#6d28d9', background:'transparent', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:4, opacity:locating?0.6:1 }}>
-                {locating
-                  ? <><div style={{ width:10, height:10, border:'1.5px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} /><span>Locating...</span></>
-                  : <><span>📍</span><span>My location</span></>
-                }
+        {/* Display mode */}
+        <div>
+          <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Display mode</label>
+          <div style={{ display:'flex', gap:6 }}>
+            {[['true','⚖️ Compare 3'],['false','🗺️ Single']].map(([val,label]) => (
+              <button key={val} onClick={() => setCompareMode(val==='true')}
+                style={{ flex:1, padding:'8px 4px', borderRadius:9, border:`1.5px solid ${compareMode===(val==='true')?'#6d28d9':'#e5e7eb'}`, background:compareMode===(val==='true')?'#f5f3ff':'#fff', color:compareMode===(val==='true')?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
+                {label}
               </button>
-            </div>
-            <SearchBox label="" placeholder="e.g. Connaught Place, Delhi"
-              value={origin.label}
-              onChange={(v) => setOrigin(o => ({ ...o, label:v }))}
-              onSelect={(item) => setOrigin({ label:item.label, lat:item.lat, lon:item.lon })}
-            />
+            ))}
           </div>
+        </div>
 
-          {/* Destination */}
-          <SearchBox label="Destination" placeholder="e.g. Taj Mahal, Agra"
-            value={dest.label}
-            onChange={(v) => setDest(d => ({ ...d, label:v }))}
-            onSelect={(item) => setDest({ label:item.label, lat:item.lat, lon:item.lon })}
-          />
-
-          {/* Display mode */}
+        {/* Route type */}
+        {!compareMode && (
           <div>
-            <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Display mode</label>
+            <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Route type</label>
             <div style={{ display:'flex', gap:6 }}>
-              {[['true','⚖️ Compare 3'],['false','🗺️ Single']].map(([val,label]) => (
-                <button key={val} onClick={() => setCompareMode(val==='true')}
-                  style={{ flex:1, padding:'8px 4px', borderRadius:9, border:`1.5px solid ${compareMode===(val==='true')?'#6d28d9':'#e5e7eb'}`, background:compareMode===(val==='true')?'#f5f3ff':'#fff', color:compareMode===(val==='true')?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
+              {[['fastest','⚡ Fast'],['shortest','📏 Short'],['eco','🌿 Eco']].map(([type,label]) => (
+                <button key={type} onClick={() => setActiveRoute(type)}
+                  style={{ flex:1, padding:'7px 4px', borderRadius:9, border:`1.5px solid ${activeRoute===type?'#6d28d9':'#e5e7eb'}`, background:activeRoute===type?'#f5f3ff':'#fff', color:activeRoute===type?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
                   {label}
                 </button>
               ))}
             </div>
           </div>
+        )}
 
-          {/* Route type */}
-          {!compareMode && (
-            <div>
-              <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Route type</label>
-              <div style={{ display:'flex', gap:6 }}>
-                {[['fastest','⚡ Fast'],['shortest','📏 Short'],['eco','🌿 Eco']].map(([type,label]) => (
-                  <button key={type} onClick={() => setActiveRoute(type)}
-                    style={{ flex:1, padding:'7px 4px', borderRadius:9, border:`1.5px solid ${activeRoute===type?'#6d28d9':'#e5e7eb'}`, background:activeRoute===type?'#f5f3ff':'#fff', color:activeRoute===type?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Map layers */}
-          <div>
-            <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Map layers</label>
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              <button onClick={() => setShowIncidents(s => !s)} className={`layer-btn ${showIncidents?'active':''}`}>
-                <span>🚧</span>
-                {showIncidents ? `Live incidents ON (${incidentCount})` : 'Live traffic incidents'}
+        {/* Map layers */}
+        <div>
+          <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Map layers</label>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {[
+              { active:showIncidents, toggle:() => setShowIncidents(s=>!s), icon:'🚧', label:showIncidents?`Live incidents ON (${incidentCount})`:'Live traffic incidents' },
+              { active:showHotspots,  toggle:() => setShowHotspots(s=>!s),  icon:'⚠️', label:showHotspots?'Hotspots ON':'Accident hotspots' },
+            ].map((btn,i) => (
+              <button key={i} onClick={btn.toggle}
+                style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:`1px solid ${btn.active?'#6d28d9':'#e5e7eb'}`, background:btn.active?'#f5f3ff':'#fff', color:btn.active?'#6d28d9':'#374151', fontSize:12, fontWeight:btn.active?600:500, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:8, transition:'all 0.15s', textAlign:'left' }}>
+                <span>{btn.icon}</span>{btn.label}
               </button>
-              <button onClick={() => setShowHotspots(s => !s)} className={`layer-btn ${showHotspots?'active':''}`}>
-                <span>⚠️</span>
-                {showHotspots ? 'Hotspots ON' : 'Accident hotspots'}
-              </button>
-            </div>
+            ))}
           </div>
-
-          {/* Live GPS */}
-          <div>
-            <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Live GPS</label>
-            {!tracking ? (
-              <button onClick={startTracking}
-                style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:8, transition:'all 0.15s' }}
-                onMouseOver={e => { e.currentTarget.style.borderColor='#6d28d9'; e.currentTarget.style.color='#6d28d9' }}
-                onMouseOut={e  => { e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.color='#374151' }}
-              >
-                <span style={{ width:8, height:8, borderRadius:'50%', background:'#22c55e', display:'inline-block' }} />
-                Start live GPS
-              </button>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:9 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <span style={{ width:7, height:7, borderRadius:'50%', background:'#22c55e', display:'inline-block', animation:'pulse-dot 1.5s infinite' }} />
-                    <span style={{ fontSize:12, color:'#15803d', fontWeight:600 }}>GPS Active</span>
-                  </div>
-                  {userLocation && <span style={{ fontSize:10, color:'#6b7280', fontFamily:'monospace' }}>{userLocation.lat.toFixed(3)}, {userLocation.lon.toFixed(3)}</span>}
-                </div>
-                <div style={{ display:'flex', gap:6 }}>
-                  <button onClick={() => setFollowUser(f => !f)}
-                    style={{ flex:1, padding:'7px', borderRadius:9, border:`1.5px solid ${followUser?'#6d28d9':'#e5e7eb'}`, background:followUser?'#f5f3ff':'#fff', color:followUser?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                    {followUser ? '📍 Following' : '📍 Follow'}
-                  </button>
-                  <button onClick={stopTracking}
-                    style={{ flex:1, padding:'7px', borderRadius:9, border:'1px solid #fecaca', background:'#fef2f2', color:'#b91c1c', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                    Stop GPS
-                  </button>
-                </div>
-              </div>
-            )}
-            {locationError && <div style={{ fontSize:11, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'7px 10px', marginTop:6 }}>{locationError}</div>}
-          </div>
-
-          {error && <div style={{ fontSize:12, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:9, padding:'10px 12px' }}>{error}</div>}
-
-          {/* Get Routes */}
-          <button onClick={handleGetRoute} disabled={loading}
-            style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'#6d28d9', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:loading?0.8:1, boxShadow:'0 4px 12px rgba(109,40,217,0.3)', transition:'all 0.2s' }}>
-            {loading ? (
-              <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                <span style={{ width:14, height:14, border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.8s linear infinite', display:'inline-block' }} />
-                Fetching routes...
-              </span>
-            ) : '🗺️ Get All Routes'}
-          </button>
-
-          {tripSaved && (
-            <div style={{ fontSize:12, color:'#15803d', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:9, padding:'9px 12px', textAlign:'center', fontWeight:500 }}>
-              ✅ Trip saved to history
-            </div>
-          )}
-
-          {/* Start Navigation */}
-          {allRoutes.length > 0 && !navMode && (
-            <button onClick={startNavigation}
-              style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'linear-gradient(135deg,#1a0f3c,#6d28d9)', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.4)' }}>
-              <span style={{ fontSize:18 }}>🧭</span> Start Navigation
-            </button>
-          )}
-
-          {/* Stop Navigation */}
-          {navMode && (
-            <button onClick={stopNavigation}
-              style={{ width:'100%', padding:'12px', borderRadius:12, border:'1px solid #fecaca', background:'#fef2f2', color:'#b91c1c', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-              ✕ Stop Navigation
-            </button>
-          )}
         </div>
+
+        {/* Live GPS */}
+        <div>
+          <label style={{ fontSize:12, fontWeight:500, color:'#6b7280', display:'block', marginBottom:6 }}>Live GPS</label>
+          {!tracking ? (
+            <button onClick={startTracking}
+              style={{ width:'100%', padding:'9px 12px', borderRadius:9, border:'1.5px solid #e5e7eb', background:'#fff', color:'#374151', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:8, transition:'all 0.15s' }}
+              onMouseOver={e => { e.currentTarget.style.borderColor='#6d28d9'; e.currentTarget.style.color='#6d28d9' }}
+              onMouseOut={e  => { e.currentTarget.style.borderColor='#e5e7eb'; e.currentTarget.style.color='#374151' }}
+            >
+              <span style={{ width:8, height:8, borderRadius:'50%', background:'#22c55e', display:'inline-block' }} />
+              Start live GPS
+            </button>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:9 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ width:7, height:7, borderRadius:'50%', background:'#22c55e', display:'inline-block' }} />
+                  <span style={{ fontSize:12, color:'#15803d', fontWeight:600 }}>GPS Active</span>
+                </div>
+                {userLocation && <span style={{ fontSize:10, color:'#6b7280', fontFamily:'monospace' }}>{userLocation.lat.toFixed(3)}, {userLocation.lon.toFixed(3)}</span>}
+              </div>
+              <div style={{ display:'flex', gap:6 }}>
+                <button onClick={() => setFollowUser(f => !f)}
+                  style={{ flex:1, padding:'7px', borderRadius:9, border:`1.5px solid ${followUser?'#6d28d9':'#e5e7eb'}`, background:followUser?'#f5f3ff':'#fff', color:followUser?'#6d28d9':'#6b7280', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                  {followUser ? '📍 Following' : '📍 Follow'}
+                </button>
+                <button onClick={stopTracking}
+                  style={{ flex:1, padding:'7px', borderRadius:9, border:'1px solid #fecaca', background:'#fef2f2', color:'#b91c1c', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                  Stop GPS
+                </button>
+              </div>
+            </div>
+          )}
+          {locationError && <div style={{ fontSize:11, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'7px 10px', marginTop:6 }}>{locationError}</div>}
+        </div>
+
+        {error && <div style={{ fontSize:12, color:'#b91c1c', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:9, padding:'10px 12px' }}>{error}</div>}
+
+        {/* Get Routes */}
+        <button onClick={handleGetRoute} disabled={loading}
+          style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'#6d28d9', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:loading?0.8:1, boxShadow:'0 4px 12px rgba(109,40,217,0.3)' }}>
+          {loading ? (
+            <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              <span style={{ width:14, height:14, border:'2px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.8s linear infinite', display:'inline-block' }} />
+              Fetching routes...
+            </span>
+          ) : '🗺️ Get All Routes'}
+        </button>
+
+        {tripSaved && (
+          <div style={{ fontSize:12, color:'#15803d', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:9, padding:'9px 12px', textAlign:'center', fontWeight:500 }}>
+            ✅ Trip saved to history
+          </div>
+        )}
+
+        {/* Start Navigation */}
+        {allRoutes.length > 0 && !navMode && (
+          <button onClick={startNavigation}
+            style={{ width:'100%', padding:'13px', borderRadius:12, border:'none', background:'linear-gradient(135deg,#1a0f3c,#6d28d9)', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.4)' }}>
+            <span style={{ fontSize:18 }}>🧭</span> Start Navigation
+          </button>
+        )}
+
+        {navMode && (
+          <button onClick={stopNavigation}
+            style={{ width:'100%', padding:'12px', borderRadius:12, border:'1px solid #fecaca', background:'#fef2f2', color:'#b91c1c', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            ✕ Stop Navigation
+          </button>
+        )}
 
         {/* Route results */}
         {allRoutes.length > 0 && (
-          <div style={{ padding:'0 16px 24px', display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
             <RouteComparison routes={allRoutes} activeRoute={activeRoute} onSelect={setActiveRoute} />
 
             {congestion && (() => {
@@ -510,11 +462,6 @@ export default function MapPage() {
                     <div style={{ fontSize:11, color:'#9ca3af' }}>Humidity {weather.humidity}% · Wind {weather.windSpeed}m/s</div>
                   </div>
                 </div>
-                {weather.alerts?.map((alert,i) => (
-                  <div key={i} style={{ marginTop:8, fontSize:11, padding:'7px 10px', borderRadius:8, background:alert.type==='danger'?'#fef2f2':alert.type==='warning'?'#fff7ed':'#eff6ff', color:alert.type==='danger'?'#b91c1c':alert.type==='warning'?'#c2410c':'#1d4ed8' }}>
-                    ⚠️ {alert.message}
-                  </div>
-                ))}
               </div>
             )}
 
@@ -534,64 +481,67 @@ export default function MapPage() {
           </div>
         )}
       </div>
+    </div>
+  )
 
-      {/* ══════════ MAP ══════════ */}
-      <div style={{ flex:1, position:'relative' }}>
+  return (
+    <div style={{ display:'flex', height:'calc(100vh - 56px)', position:'relative', overflow:'hidden', fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+
+      {/* Desktop sidebar — always visible */}
+      {!isMobile && Sidebar}
+
+      {/* Mobile sidebar — overlay */}
+      {isMobile && sidebarOpen && (
+        <>
+          <div onClick={() => setSidebarOpen(false)}
+            style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.45)', zIndex:9998 }} />
+          <div style={{ position:'absolute', left:0, top:0, height:'100%', width:'85%', maxWidth:320, zIndex:9999, overflowY:'auto' }}>
+            {Sidebar}
+          </div>
+        </>
+      )}
+
+      {/* MAP */}
+      <div style={{ flex:1, position:'relative', minWidth:0 }}>
+
+        {/* Mobile search button */}
+        {isMobile && (
+          <button
+            onClick={() => setSidebarOpen(true)}
+            style={{ position:'absolute', top:12, left:12, zIndex:1000, background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'10px 16px', color:'#374151', fontSize:13, cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:8, boxShadow:'0 2px 12px rgba(0,0,0,0.12)' }}
+          >
+            <span>☰</span>
+            <span style={{ color:'#6d28d9' }}>Search Route</span>
+          </button>
+        )}
+
         <MapContainer center={[20.5937, 78.9629]} zoom={5} style={{ height:'100%', width:'100%' }}>
-
-          {/* Switch tile layer based on nav mode */}
           {navMode ? (
-            <TileLayer
-              key="nav-light"
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-              maxZoom={20}
-            />
+            <TileLayer key="light" url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap &copy; CARTO' maxZoom={20} />
           ) : (
-            <TileLayer
-              key="dark"
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-              attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-            />
+            <TileLayer key="dark" url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap &copy; CARTO' />
           )}
 
-          {origin.lat && (
-            <Marker position={[origin.lat, origin.lon]} icon={greenIcon}>
-              <Popup><strong>{origin.label}</strong><br/>Origin</Popup>
-            </Marker>
-          )}
-          {dest.lat && (
-            <Marker position={[dest.lat, dest.lon]} icon={redIcon}>
-              <Popup><strong>{dest.label}</strong><br/>Destination</Popup>
-            </Marker>
-          )}
+          {origin.lat && <Marker position={[origin.lat, origin.lon]} icon={greenIcon}><Popup><strong>{origin.label}</strong><br/>Origin</Popup></Marker>}
+          {dest.lat   && <Marker position={[dest.lat,   dest.lon]}   icon={redIcon}  ><Popup><strong>{dest.label}</strong><br/>Destination</Popup></Marker>}
 
           {compareMode
             ? allRoutes.map(route => (
                 <Polyline key={route.key} positions={route.points} color={ROUTE_COLORS[route.key]}
-                  weight={activeRoute===route.key ? 6 : 3} opacity={activeRoute===route.key ? 0.95 : 0.5}
-                  eventHandlers={{ click: () => setActiveRoute(route.key) }} />
+                  weight={activeRoute===route.key?6:3} opacity={activeRoute===route.key?0.95:0.5}
+                  eventHandlers={{ click:() => setActiveRoute(route.key) }} />
               ))
-            : activeRouteData && (
-                <Polyline positions={activeRouteData.points} color={ROUTE_COLORS[activeRoute]} weight={navMode?7:6} opacity={0.92} />
-              )
+            : activeRouteData && <Polyline positions={activeRouteData.points} color={ROUTE_COLORS[activeRoute]} weight={6} opacity={0.92} />
           }
 
           {allRoutes.length > 0 && <FlyToRoutes allRoutes={allRoutes} />}
 
           {userLocation && (
             <>
-              <Marker position={[userLocation.lat, userLocation.lon]} icon={liveIcon}>
-                <Popup>
-                  <strong>You are here</strong>
-                  {navMode && <div style={{ fontSize:11, color:'#6b7280', marginTop:4 }}>Navigation active</div>}
-                </Popup>
-              </Marker>
-              <Circle
-                center={[userLocation.lat, userLocation.lon]}
-                radius={navMode ? 30 : 60}
-                pathOptions={{ color:'#6d28d9', fillColor:'#6d28d9', fillOpacity:0.1, weight:1.5 }}
-              />
+              <Marker position={[userLocation.lat, userLocation.lon]} icon={liveIcon}><Popup><strong>You are here</strong></Popup></Marker>
+              <Circle center={[userLocation.lat, userLocation.lon]} radius={50} pathOptions={{ color:'#6d28d9', fillColor:'#6d28d9', fillOpacity:0.12, weight:1.5 }} />
               <FollowUser position={userLocation} follow={followUser} navMode={navMode} />
             </>
           )}
@@ -602,20 +552,11 @@ export default function MapPage() {
           <SharedUsersLayer users={sharedUsers}    />
         </MapContainer>
 
-        {/* Search Route button */}
-        <button
-          onClick={() => setSidebarOpen(s => !s)}
-          style={{ position:'absolute', top:16, left:16, zIndex:1000, background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, padding:'10px 18px', color:sidebarOpen?'#6d28d9':'#374151', fontSize:13, cursor:'pointer', fontFamily:'inherit', fontWeight:600, display:'flex', alignItems:'center', gap:8, boxShadow:'0 2px 12px rgba(0,0,0,0.1)', transition:'all 0.15s' }}
-        >
-          <span style={{ fontSize:15 }}>{sidebarOpen ? '✕' : '☰'}</span>
-          <span style={{ color:'#6d28d9' }}>{sidebarOpen ? 'Close' : 'Search Route'}</span>
-        </button>
-
-        {/* Navigation mode indicator */}
+        {/* Nav mode indicator */}
         {navMode && (
-          <div style={{ position:'absolute', top:16, left:'50%', transform:'translateX(-50%)', zIndex:1000, background:'#6d28d9', color:'#fff', padding:'8px 20px', borderRadius:24, fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.4)' }}>
+          <div style={{ position:'absolute', top:16, left:'50%', transform:'translateX(-50%)', zIndex:1000, background:'#6d28d9', color:'#fff', padding:'8px 20px', borderRadius:24, fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.4)', whiteSpace:'nowrap' }}>
             <span style={{ width:7, height:7, borderRadius:'50%', background:'#a78bfa', display:'inline-block', animation:'pulse-dot 1s infinite' }} />
-            Navigation Active — Street View
+            Navigation Active
           </div>
         )}
 
@@ -623,16 +564,11 @@ export default function MapPage() {
         {compareMode && allRoutes.length > 0 && !navMode && (
           <div style={{ position:'absolute', top:16, right:16, zIndex:1000, background:'rgba(255,255,255,0.96)', backdropFilter:'blur(8px)', border:'1px solid #e5e7eb', borderRadius:14, padding:'14px 16px', boxShadow:'0 2px 12px rgba(0,0,0,0.08)' }}>
             <div style={{ fontSize:11, fontWeight:600, color:'#9ca3af', marginBottom:10, textTransform:'uppercase', letterSpacing:'0.05em' }}>Routes</div>
-            {[
-              { key:'fastest',  color:'#6d28d9', label:'⚡ Fastest'  },
-              { key:'shortest', color:'#0ea5e9', label:'📏 Shortest' },
-              { key:'eco',      color:'#22c55e', label:'🌿 Eco'      },
-            ].map(r => (
+            {[{key:'fastest',color:'#6d28d9',label:'⚡ Fastest'},{key:'shortest',color:'#0ea5e9',label:'📏 Shortest'},{key:'eco',color:'#22c55e',label:'🌿 Eco'}].map(r => (
               <div key={r.key} onClick={() => setActiveRoute(r.key)}
-                style={{ display:'flex', alignItems:'center', gap:8, marginBottom:7, cursor:'pointer', opacity:activeRoute===r.key?1:0.5, transition:'opacity 0.15s' }}>
+                style={{ display:'flex', alignItems:'center', gap:8, marginBottom:7, cursor:'pointer', opacity:activeRoute===r.key?1:0.5 }}>
                 <div style={{ width:20, height:3, borderRadius:2, background:r.color }} />
                 <span style={{ fontSize:12, fontWeight:activeRoute===r.key?700:500, color:activeRoute===r.key?'#111':'#6b7280' }}>{r.label}</span>
-                {activeRoute===r.key && <span style={{ width:5, height:5, borderRadius:'50%', background:r.color, display:'inline-block' }} />}
               </div>
             ))}
           </div>
@@ -640,8 +576,8 @@ export default function MapPage() {
 
         {/* Bottom hint */}
         {allRoutes.length === 0 && !loading && (
-          <div style={{ position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)', background:'rgba(255,255,255,0.96)', backdropFilter:'blur(8px)', border:'1px solid #e5e7eb', borderRadius:20, padding:'10px 20px', fontSize:13, color:'#6b7280', pointerEvents:'none', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(0,0,0,0.08)', fontFamily:'inherit' }}>
-            Click ☰ Search Route to plan your journey
+          <div style={{ position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)', background:'rgba(255,255,255,0.96)', border:'1px solid #e5e7eb', borderRadius:20, padding:'10px 20px', fontSize:13, color:'#6b7280', pointerEvents:'none', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(0,0,0,0.08)' }}>
+            {isMobile ? 'Tap ☰ to search your route' : 'Enter origin and destination to get routes'}
           </div>
         )}
 
@@ -649,7 +585,6 @@ export default function MapPage() {
         {tracking && !followUser && !navMode && (
           <button onClick={() => setFollowUser(true)}
             style={{ position:'absolute', bottom:80, right:16, zIndex:1000, background:'#6d28d9', color:'#fff', border:'none', padding:'10px 18px', borderRadius:12, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 16px rgba(109,40,217,0.35)' }}>
-            <span style={{ width:7, height:7, borderRadius:'50%', background:'#fff', display:'inline-block' }} />
             Re-center
           </button>
         )}
@@ -659,13 +594,13 @@ export default function MapPage() {
           <div style={{ position:'absolute', inset:0, background:'rgba(255,255,255,0.75)', backdropFilter:'blur(4px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9997 }}>
             <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:20, padding:'28px 36px', textAlign:'center', boxShadow:'0 16px 48px rgba(0,0,0,0.12)' }}>
               <div style={{ width:44, height:44, border:'3px solid #e9d5ff', borderTopColor:'#6d28d9', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 14px' }} />
-              <p style={{ color:'#111', fontWeight:700, fontSize:15, marginBottom:4, fontFamily:'inherit' }}>Fetching all 3 routes...</p>
-              <p style={{ color:'#9ca3af', fontSize:12, fontFamily:'inherit' }}>Fastest · Shortest · Eco</p>
+              <p style={{ color:'#111', fontWeight:700, fontSize:15, marginBottom:4 }}>Fetching all 3 routes...</p>
+              <p style={{ color:'#9ca3af', fontSize:12 }}>Fastest · Shortest · Eco</p>
             </div>
           </div>
         )}
 
-        {/* Google Maps style Live Navigation */}
+        {/* Live Navigation */}
         {navMode && activeRouteData?.instructions?.length > 0 && (
           <LiveNavigation
             instructions={activeRouteData.instructions}
@@ -680,18 +615,12 @@ export default function MapPage() {
         {/* AI Chat */}
         <ChatAssistant
           routeContext={{
-            origin:          origin.label,
-            destination:     dest.label,
-            destLat:         dest.lat,
-            destLon:         dest.lon,
-            distance:        activeRouteData?.distance,
-            duration:        activeRouteData?.duration,
-            tollCost:        activeRouteData?.tollCost,
-            fuelCost:        activeRouteData?.fuelCost,
-            congestionLevel: congestion?.level,
-            congestionScore: congestion?.score,
-            weather:         weather,
-            activeRoute:     activeRoute,
+            origin:origin.label, destination:dest.label,
+            destLat:dest.lat, destLon:dest.lon,
+            distance:activeRouteData?.distance, duration:activeRouteData?.duration,
+            tollCost:activeRouteData?.tollCost, fuelCost:activeRouteData?.fuelCost,
+            congestionLevel:congestion?.level, congestionScore:congestion?.score,
+            weather, activeRoute,
           }}
         />
       </div>
